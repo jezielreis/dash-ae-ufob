@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitoramento Meteorológico</title>
+    <!-- REMOVA esta linha -->
+    <!--<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>-->
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        header {
+            background: #2c3e50;
+            color: white;
+            padding: 25px 40px;
+            text-align: center;
+        }
+        
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .controls {
+            background: #ecf0f1;
+            padding: 20px 40px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        
+        button:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        button:disabled {
+            background: #95a5a6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .btn-success {
+            background: #27ae60;
+        }
+        
+        .btn-success:hover {
+            background: #219653;
+        }
+        
+        .btn-warning {
+            background: #f39c12;
+        }
+        
+        .btn-warning:hover {
+            background: #e67e22;
+        }
+        
+        .result-area {
+            padding: 30px 40px;
+            min-height: 400px;
+        }
+        
+        .status {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        .data-container {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        
+        .station-card {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+        }
+        
+        .station-card h3 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        
+        .station-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .info-label {
+            font-weight: 600;
+            color: #7f8c8d;
+        }
+        
+        .info-value {
+            color: #2c3e50;
+        }
+        
+        .highlight {
+            color: #e74c3c;
+            font-weight: 700;
+        }
+        
+        .data-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .data-card {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+        }
+        
+        .data-card-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #3498db;
+        }
+        
+        .data-card-header h3 {
+            color: #2c3e50;
+            margin-left: 10px;
+        }
+        
+        .data-card-icon {
+            font-size: 24px;
+        }
+        
+        .last-update {
+            text-align: center;
+            margin-top: 20px;
+            color: #7f8c8d;
+            font-size: 0.9em;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+        
+        footer {
+            text-align: center;
+            padding: 20px;
+            color: #7f8c8d;
+            font-size: 14px;
+            border-top: 1px solid #eee;
+        }
+        
+        /* Modal/Overlay styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .modal {
+            background: white;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            animation: modalFadeIn 0.3s ease;
+        }
+        
+        @keyframes modalFadeIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .modal-header {
+            background: #2c3e50;
+            color: white;
+            padding: 20px;
+            border-radius: 15px 15px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .modal-header h3 {
+            margin: 0;
+            color: white;
+        }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal-content {
+            padding: 30px;
+        }
+        
+        .modal-footer {
+            padding: 15px 30px;
+            background: #f8f9fa;
+            border-radius: 0 0 15px 15px;
+            text-align: right;
+            border-top: 1px solid #eee;
+        }
+        
+        /* Loading animation */
+        .loader {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .controls {
+                justify-content: center;
+            }
+            
+            .result-area {
+                padding: 20px;
+            }
+            
+            h1 {
+                font-size: 2em;
+            }
+            
+            button {
+                padding: 10px 15px;
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🌤️ Monitoramento Meteorológico</h1>
+            <p>Sistema de Monitoramento em Tempo Real</p>
+        </header>
+        
+        <div class="controls">
+            <button onclick="testConnection()" id="btnTest">
+                🔌 Testar Conexão
+            </button>
+            <button onclick="verifyUserAccess()" id="btnUser">
+                👤 Verificar Acesso
+            </button>
+            <button onclick="getStations()" id="btnStations" class="btn-success">
+                📡 Buscar Dados
+            </button>
+            <button onclick="clearResults()" id="btnClear" class="btn-warning">
+                🗑️ Limpar
+            </button>
+        </div>
+        
+        <div class="result-area">
+            <div id="status"></div>
+            <div id="data-container" class="data-container"></div>
+        </div>
+        
+        <!-- Modal para dados detalhados -->
+        <div class="modal-overlay" id="modalOverlay">
+            <div class="modal">
+                <div class="modal-header">
+                    <h3 id="modalTitle">Detalhes da Estação</h3>
+                    <button class="modal-close" onclick="closeModal()">&times;</button>
+                </div>
+                <div class="modal-content">
+                    <div id="modalContent"></div>
+                </div>
+                <div class="modal-footer">
+                    <button onclick="closeModal()">Fechar</button>
+                </div>
+            </div>
+        </div>
+        
+        <footer>
+            <p>© 2024 Sistema de Monitoramento Meteorológico</p>
+        </footer>
+    </div>
+
+    <script src="ConnectionAPI.js"></script>
+    <script>
+    // Elementos DOM
+    const statusEl = document.getElementById('status');
+    const dataContainer = document.getElementById('data-container');
+    const modalOverlay = document.getElementById('modalOverlay');
+    const modalTitle = document.getElementById('modalTitle');
+    const modalContent = document.getElementById('modalContent');
+    const buttons = document.querySelectorAll('button');
+    
+    // Cache de estações
+    let stationsCache = [];
+    let lastUpdate = null;
+    
+    // Utilitários
+    function showStatus(message, type = 'info') {
+        const icon = type === 'error' ? '❌' : 
+                    type === 'success' ? '✅' : 'ℹ️';
+        statusEl.innerHTML = `
+            <div class="status ${type}">
+                ${icon} ${message}
+            </div>
+        `;
+    }
+    
+    function setLoading(loading, buttonId = null) {
+        buttons.forEach(btn => {
+            if (loading && buttonId && btn.id === buttonId) {
+                btn.innerHTML = `<span class="loader"></span> Processando...`;
+                btn.disabled = true;
+            } else if (loading && !buttonId && btn.id !== 'btnClear') {
+                btn.disabled = true;
+            } else {
+                btn.disabled = false;
+                // Restaurar texto dos botões
+                if (btn.id === 'btnTest') btn.innerHTML = '🔌 Testar Conexão';
+                if (btn.id === 'btnUser') btn.innerHTML = '👤 Verificar Acesso';
+                if (btn.id === 'btnStations') btn.innerHTML = '📡 Buscar Dados';
+                if (btn.id === 'btnClear') btn.innerHTML = '🗑️ Limpar';
+            }
+        });
+    }
+    
+    function clearResults() {
+        statusEl.innerHTML = '';
+        dataContainer.innerHTML = '';
+        lastUpdate = null;
+    }
+    
+    function formatDateTime(dateString) {
+        if (!dateString) return 'N/A';
+        try {
+            const date = new Date(dateString);
+            return date.toLocaleString('pt-BR');
+        } catch (e) {
+            return dateString;
+        }
+    }
+    
+    function updateLastUpdateTime() {
+        lastUpdate = new Date();
+        const timeEl = document.getElementById('last-update-time');
+        if (timeEl) {
+            timeEl.textContent = lastUpdate.toLocaleTimeString('pt-BR');
+        }
+    }
+    
+    // Funções do Modal
+    function openModal(title, content) {
+        modalTitle.textContent = title;
+        modalContent.innerHTML = content;
+        modalOverlay.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    }
+    
+    function closeModal() {
+        modalOverlay.style.display = 'none';
+        document.body.style.overflow = 'auto';
+    }
+    
+    // Fechar modal ao clicar fora
+    modalOverlay.addEventListener('click', function(e) {
+        if (e.target === modalOverlay) {
+            closeModal();
+        }
+    });
+    
+    // Testar conexão (sem informações sensíveis)
+    async function testConnection() {
+        setLoading(true, 'btnTest');
+        showStatus('Testando conexão com o servidor...', 'info');
+        
+        try {
+            const result = await FieldClimateAPI.testConnection();
+            
+            if (result.success) {
+                showStatus(`✅ ${result.message} - ${result.stationsCount} estação(ões) disponível(is)`, 'success');
+            } else {
+                showStatus(`❌ ${result.message}`, 'error');
+            }
+        } catch (error) {
+            showStatus(`❌ Erro: Não foi possível conectar ao servidor`, 'error');
+        } finally {
+            setLoading(false);
+        }
+    }
+    
+    // Verificar acesso do usuário (versão segura)
+    async function verifyUserAccess() {
+        setLoading(true, 'btnUser');
+        showStatus('Verificando permissões de acesso...', 'info');
+        
+        try {
+            const userInfo = await FieldClimateAPI.getUserInfo();
+            
+            if (userInfo.success) {
+                const modalHtml = `
+                    <div class="station-card">
+                        <h3>✅ Acesso Verificado</h3>
+                        <p>${userInfo.message}</p>
+                        <p>Estações disponíveis: <strong>${userInfo.stations_count}</strong></p>
+                        <div style="margin-top: 15px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                            <p><strong>Permissões confirmadas:</strong></p>
+                            <ul style="margin-left: 20px; margin-top: 10px;">
+                                <li>Leitura de dados meteorológicos</li>
+                                <li>Acesso às estações disponíveis</li>
+                                <li>Consulta de dados históricos</li>
+                            </ul>
+                        </div>
+                    </div>
+                `;
+                
+                openModal('Verificação de Acesso', modalHtml);
+                showStatus('✅ Permissões verificadas com sucesso', 'success');
+            } else {
+                showStatus(`⚠️ ${userInfo.message}`, 'info');
+                
+                const modalHtml = `
+                    <div class="station-card">
+                        <h3>⚠️ Aviso de Acesso</h3>
+                        <p>${userInfo.message}</p>
+                        <p>Algumas funcionalidades podem estar limitadas.</p>
+                        <p style="margin-top: 15px;">Entre em contato com o administrador do sistema para mais informações.</p>
+                    </div>
+                `;
+                
+                openModal('Aviso de Acesso', modalHtml);
+            }
+        } catch (error) {
+            showStatus(`❌ Erro na verificação de acesso`, 'error');
+        } finally {
+            setLoading(false);
+            updateLastUpdateTime();
+        }
+    }
+    
+    // Buscar estações e dados principais
+    async function getStations() {
+        setLoading(true, 'btnStations');
+        showStatus('Buscando dados das estações...', 'info');
+        
+        try {
+            const stations = await FieldClimateAPI.getStations();
+            
+            if (Array.isArray(stations) && stations.length > 0) {
+                stationsCache = stations;
+                localStorage.setItem('fieldclimate_stations', JSON.stringify(stations));
+                
+                // Para produção, vamos mostrar os dados da primeira estação automaticamente
+                if (stations.length === 1) {
+                    showStationData(stations[0]);
+                    showStatus(`✅ Dados atualizados com sucesso`, 'success');
+                } else {
+                    showAllStations(stations);
+                    showStatus(`✅ ${stations.length} estações encontradas`, 'success');
+                }
+                
+            } else {
+                showStatus('⚠️ Nenhuma estação disponível no momento', 'info');
+                dataContainer.innerHTML = `
+                    <div class="station-card">
+                        <h3>📡 Nenhuma Estação Disponível</h3>
+                        <p>Não há estações ativas no momento.</p>
+                        <p>Verifique a conexão das estações ou tente novamente mais tarde.</p>
+                    </div>
+                `;
+            }
+        } catch (error) {
+            showStatus(`❌ Erro ao buscar dados: ${error.message}`, 'error');
+            
+            dataContainer.innerHTML = `
+                <div class="station-card">
+                    <h3>❌ Erro de Comunicação</h3>
+                    <p>Não foi possível conectar às estações no momento.</p>
+                    <p style="margin-top: 15px;"><strong>Soluções:</strong></p>
+                    <ul style="margin-left: 20px; margin-top: 10px;">
+                        <li>Verifique sua conexão com a internet</li>
+                        <li>Tente novamente em alguns instantes</li>
+                        <li>Verifique o status do servidor</li>
+                    </ul>
+                </div>
+            `;
+        } finally {
+            setLoading(false);
+            updateLastUpdateTime();
+        }
+    }
+    
+    // Mostrar dados de uma estação específica
+    function showStationData(station) {
+        const stationId = station.name.original;
+        const stationName = station.name.custom || station.name.original || 'Estação Meteorológica';
+        const metaData = FieldClimateAPI.getStationMetaData(station);
+        
+        let html = `
+            <div class="station-card">
+                <h3>${stationName}</h3>
+                <div class="station-info">
+                    <div class="info-item">
+                        <span class="info-label">ID da Estação:</span>
+                        <span class="info-value">${stationId.substring(0, 8)}...</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Dispositivo:</span>
+                        <span class="info-value">${station.info?.device_name || 'N/A'}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Última comunicação:</span>
+                        <span class="info-value">${formatDateTime(station.dates?.last_communication)}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="data-grid">
+        `;
+        
+        // Card de Temperatura
+        html += `
+            <div class="data-card">
+                <div class="data-card-header">
+                    <div class="data-card-icon">🌡️</div>
+                    <h3>Temperatura</h3>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Atual:</span>
+                    <span class="info-value highlight">${metaData?.temperatura || 'N/A'}°C</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Mínima diária:</span>
+                    <span class="info-value">${metaData?.temperatura_minima_diaria || 'N/A'}°C</span>
+                </div>
+            </div>
+        `;
+        
+        // Card de Umidade
+        html += `
+            <div class="data-card">
+                <div class="data-card-header">
+                    <div class="data-card-icon">💧</div>
+                    <h3>Umidade</h3>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Relativa:</span>
+                    <span class="info-value highlight">${metaData?.umidade || 'N/A'}%</span>
+                </div>
+            </div>
+        `;
+        
+        // Card de Radiação Solar
+        html += `
+            <div class="data-card">
+                <div class="data-card-header">
+                    <div class="data-card-icon">☀️</div>
+                    <h3>Radiação Solar</h3>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Intensidade:</span>
+                    <span class="info-value highlight">${metaData?.radiacao_solar || 'N/A'} W/m²</span>
+                </div>
+            </div>
+        `;
+        
+        // Card de Vento
+        html += `
+            <div class="data-card">
+                <div class="data-card-header">
+                    <div class="-data-card-icon">💨</div>
+                    <h3>Vento</h3>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Velocidade:</span>
+                    <span class="info-value highlight">${metaData?.velocidade_vento || 'N/A'} m/s</span>
+                </div>
+            </div>
+        `;
+        
+        // Card de Chuva
+        html += `
+            <div class="data-card">
+                <div class="data-card-header">
+                    <div class="data-card-icon">🌧️</div>
+                    <h3>Precipitação</h3>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Última:</span>
+                    <span class="info-value">${metaData?.chuva_ultima || '0'} mm</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Última hora:</span>
+                    <span class="info-value">${metaData?.chuva_1h || '0'} mm</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">24 horas:</span>
+                    <span class="info-value highlight">${metaData?.chuva_24h || '0'} mm</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">48 horas:</span>
+                    <span class="info-value">${metaData?.chuva_48h || '0'} mm</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">7 dias:</span>
+                    <span class="info-value">${metaData?.chuva_7d || '0'} mm</span>
+                </div>
+            </div>
+        `;
+        
+        // Card de Energia
+        html += `
+            <div class="data-card">
+                <div class="data-card-header">
+                    <div class="data-card-icon">🔋</div>
+                    <h3>Energia</h3>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Bateria:</span>
+                    <span class="info-value">${metaData?.bateria || 'N/A'} mV</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Painel solar:</span>
+                    <span class="info-value">${metaData?.painel_solar || 'N/A'} mV</span>
+                </div>
+            </div>
+        `;
+        
+        html += `</div>`; // Fecha data-grid
+        
+        // Botões de ação
+        html += `
+            <div style="margin-top: 30px; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;">
+                <button onclick="showHistoricalDataModal('${stationId}', 24)" style="background: #3182ce;">
+                    📈 Últimas 24h
+                </button>
+                <button onclick="showHistoricalDataModal('${stationId}', 168)" style="background: #805ad5;">
+                    📈 Últimos 7 dias
+                </button>
+                <button onclick="getStations()" class="btn-success">
+                    🔄 Atualizar Dados
+                </button>
+            </div>
+            
+            <div class="last-update">
+                Última atualização: <span id="last-update-time">${lastUpdate ? lastUpdate.toLocaleTimeString('pt-BR') : '--:--:--'}</span>
+            </div>
+        `;
+        
+        dataContainer.innerHTML = html;
+    }
+    
+    // Mostrar todas as estações (se houver mais de uma)
+    function showAllStations(stations) {
+        let html = `<h3 style="margin-bottom: 20px; text-align: center;">📡 ${stations.length} Estações Encontradas</h3>`;
+        
+        stations.forEach((station, index) => {
+            const stationId = station.name.original;
+            const stationName = station.name.custom || station.name.original || `Estação ${index + 1}`;
+            const metaData = FieldClimateAPI.getStationMetaData(station);
+            
+            html += `
+                <div class="station-card">
+                    <h3>${stationName}</h3>
+                    <div class="station-info">
+                        <div class="info-item">
+                            <span class="info-label">ID:</span>
+                            <span class="info-value">${stationId.substring(0, 8)}...</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Temperatura:</span>
+                            <span class="info-value">${metaData?.temperatura || 'N/A'}°C</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Umidade:</span>
+                            <span class="info-value">${metaData?.umidade || 'N/A'}%</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Última comunicação:</span>
+                            <span class="info-value">${formatDateTime(station.dates?.last_communication)}</span>
+                        </div>
+                    </div>
+                    <div style="margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;">
+                        <button onclick="showStationDataFromCache('${stationId}')" class="btn-success">
+                            📊 Ver Detalhes
+                        </button>
+                        <button onclick="showHistoricalDataModal('${stationId}', 24)" style="background: #3182ce;">
+                            📈 24h
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+        
+        dataContainer.innerHTML = html;
+    }
+    
+    // Mostrar dados de uma estação específica do cache
+    function showStationDataFromCache(stationId) {
+        const station = stationsCache.find(s => s.name.original === stationId);
+        if (station) {
+            showStationData(station);
+            showStatus(`✅ Dados carregados`, 'success');
+        } else {
+            showStatus(`❌ Estação não encontrada`, 'error');
+            getStations(); // Recarrega as estações
+        }
+    }
+    
+    // Mostrar dados históricos no modal (versão segura)
+    async function showHistoricalDataModal(stationId, hoursBack = 24) {
+        setLoading(true);
+        showStatus(`Buscando dados das últimas ${hoursBack} horas...`, 'info');
+        
+        try {
+            const historicalData = await FieldClimateAPI.getStationLastData(stationId, hoursBack);
+            
+            let modalHtml = `
+                <div class="station-card">
+                    <h3>📈 Dados Históricos</h3>
+                    <div class="info-item">
+                        <span class="info-label">Período:</span>
+                        <span class="info-value">Últimas ${hoursBack} horas</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Estação:</span>
+                        <span class="info-value">${stationId.substring(0, 8)}...</span>
+                    </div>
+            `;
+            
+            if (historicalData && historicalData.sensors && Array.isArray(historicalData.sensors)) {
+                const sensorCount = historicalData.sensors.length;
+                modalHtml += `
+                    <div class="info-item">
+                        <span class="info-label">Sensores ativos:</span>
+                        <span class="info-value">${sensorCount}</span>
+                    </div>
+                `;
+            }
+            
+            if (historicalData && historicalData.data && Array.isArray(historicalData.data) && historicalData.data.length > 0) {
+                const sampleCount = Math.min(historicalData.data.length, 3);
+                modalHtml += `
+                    <div class="info-item">
+                        <span class="info-label">Registros:</span>
+                        <span class="info-value">${historicalData.data.length}</span>
+                    </div>
+                    
+                    <div style="margin-top: 15px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                        <h4>📊 Resumo dos Dados</h4>
+                        <p>${sampleCount} amostras de ${historicalData.data.length} registros disponíveis</p>
+                        <p><em>Dados históricos processados com sucesso.</em></p>
+                    </div>
+                `;
+            } else {
+                modalHtml += `
+                    <div style="margin-top: 15px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                        <p>Não há dados históricos disponíveis para este período.</p>
+                        <p>Os dados podem estar sendo processados ou a estação pode estar offline.</p>
+                    </div>
+                `;
+            }
+            
+            modalHtml += `
+                </div>
+                <div style="margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;">
+                    <button onclick="showStationDataFromCache('${stationId}')" style="background: #718096;">
+                        ↩️ Voltar para Dados Atuais
+                    </button>
+                    ${hoursBack === 24 ? 
+                        `<button onclick="showHistoricalDataModal('${stationId}', 168)" style="background: #805ad5;">
+                            📈 Ver 7 Dias
+                        </button>` : 
+                        `<button onclick="showHistoricalDataModal('${stationId}', 24)" style="background: #3182ce;">
+                            📈 Ver 24 Horas
+                        </button>`
+                    }
+                </div>
+            `;
+            
+            openModal(`Dados Históricos - Últimas ${hoursBack}h`, modalHtml);
+            showStatus(`✅ Dados históricos carregados`, 'success');
+            
+        } catch (error) {
+            showStatus(`⚠️ Não foi possível carregar dados históricos`, 'info');
+            
+            const modalHtml = `
+                <div class="station-card">
+                    <h3>ℹ️ Dados Históricos</h3>
+                    <p><strong>Período solicitado:</strong> Últimas ${hoursBack} horas</p>
+                    <p>Os dados históricos não estão disponíveis no momento.</p>
+                    <div style="margin-top: 15px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                        <p><strong>Possíveis causas:</strong></p>
+                        <ul style="margin-left: 20px; margin-top: 10px;">
+                            <li>A estação pode estar offline</li>
+                            <li>Período sem dados disponíveis</li>
+                            <li>Processamento em andamento</li>
+                        </ul>
+                    </div>
+                </div>
+                <div style="margin-top: 20px; text-align: center;">
+                    <button onclick="showStationDataFromCache('${stationId}')" style="background: #718096;">
+                        ↩️ Voltar para Dados Atuais
+                    </button>
+                </div>
+            `;
+            
+            openModal(`Dados Históricos`, modalHtml);
+        } finally {
+            setLoading(false);
+            updateLastUpdateTime();
+        }
+    }
+    
+    // Inicialização
+    document.addEventListener('DOMContentLoaded', () => {
+        // Carregar estações do cache se existirem
+        try {
+            const cached = localStorage.getItem('fieldclimate_stations');
+            if (cached) {
+                stationsCache = JSON.parse(cached);
+                
+                // Se há uma estação no cache, mostrar automaticamente
+                if (stationsCache.length === 1) {
+                    showStationData(stationsCache[0]);
+                    showStatus('✅ Dados carregados do cache. Clique em "Buscar Dados" para atualizar.', 'success');
+                }
+            }
+        } catch (e) {
+            // Não faz nada - cache não disponível
+        }
+        
+        // Mensagem inicial
+        showStatus('Pronto para monitoramento. Clique em "Buscar Dados" para começar.', 'info');
+    });
+    
+    // Auto-atualização a cada 5 minutos
+    setInterval(() => {
+        if (stationsCache.length > 0) {
+            getStations();
+        }
+    }, 300000);
+    </script>
+</body>
+</html>
