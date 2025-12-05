@@ -1,0 +1,28 @@
+{
+  "version": 2,
+  "name": "fieldclimate-dashboard",
+  "builds": [
+    {
+      "src": "api/fieldclimate.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "public/**/*",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/fieldclimate.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/public/$1"
+    }
+  ],
+  "env": {
+    "FIELDCLIMATE_PUBLIC_KEY": "@fieldclimate_public_key",
+    "FIELDCLIMATE_PRIVATE_KEY": "@fieldclimate_private_key"
+  }
+}
