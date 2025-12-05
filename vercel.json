@@ -21,8 +21,5 @@
       "dest": "/public/$1"
     }
   ],
-  "env": {
-    "FIELDCLIMATE_PUBLIC_KEY": "@fieldclimate_public_key",
-    "FIELDCLIMATE_PRIVATE_KEY": "@fieldclimate_private_key"
-  }
+ 
 }
