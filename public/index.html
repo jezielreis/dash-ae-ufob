@@ -671,7 +671,8 @@
                 showStatus(`❌ ${result.message}`, 'error');
             }
         } catch (error) {
-            showStatus(`❌ Erro: Não foi possível conectar ao servidor`, 'error');
+            showStatus(`❌ ${result.message}`, 'error');
+            //showStatus(`❌ Erro: Não foi possível conectar ao servidor`, 'error');
         } finally {
             setLoading(false);
         }
