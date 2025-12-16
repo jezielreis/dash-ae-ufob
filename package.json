@@ -1,0 +1,20 @@
+{
+  "name": "dash-ae-ufob",
+  "version": "1.0.0",
+  "description": "Dashboard meteorológico para cálculo de ET0",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vercel dev",
+    "start": "vercel start",
+    "build": "echo 'Build não necessário para estáticos'"
+  },
+  "dependencies": {
+    "crypto-js": "^4.1.1"
+  },
+  "devDependencies": {
+    "@vercel/node": "^2.0.0"
+  },
+  "engines": {
+    "node": ">=16.x"
+  }
+}
