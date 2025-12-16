@@ -671,7 +671,8 @@
                 showStatus(`❌ ${result.message}`, 'error');
             }
         } catch (error) {
-            showStatus(`❌ Erro: Não foi possível conectar ao servidor`, 'error');
+            showStatus(`❌ ${result.message}`, 'error');
+            //showStatus(`❌ Erro: Não foi possível conectar ao servidor`, 'error');
         } finally {
             setLoading(false);
         }
@@ -708,7 +709,8 @@
                 showStatus(`⚠️ ${userInfo.message}`, 'info');
             }
         } catch (error) {
-            showStatus(`❌ Erro na verificação de acesso`, 'error');
+            showStatus(`⚠️ ${userInfo.message}`, 'info');
+            //showStatus(`❌ Erro na verificação de acesso`, 'error');
         } finally {
             setLoading(false);
         }
