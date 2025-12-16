@@ -671,8 +671,7 @@
                 showStatus(`❌ ${result.message}`, 'error');
             }
         } catch (error) {
-            showStatus(`❌ ${result.message}`, 'error');
-            //showStatus(`❌ Erro: Não foi possível conectar ao servidor`, 'error');
+            showStatus(`❌ Erro: Não foi possível conectar ao servidor`, 'error');
         } finally {
             setLoading(false);
         }
@@ -1087,7 +1086,8 @@
             'hargreaves_temperatura_radiacao': 'Hargreaves (temperatura + radiação)',
             'hargreaves_apenas_temperatura': 'Hargreaves (apenas temperatura)',
             'estimativa_temperatura_media': 'Estimativa por temperatura',
-            'estimativa_padrao': 'Estimativa padrão'
+            'estimativa_padrao': 'Estimativa padrão',
+            'estimativa_sazonal': 'Estimativa sazonal'
         };
         
         const methodName = methodNames[et0Value.method] || et0Value.method;

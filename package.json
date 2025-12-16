@@ -11,10 +11,7 @@
   "dependencies": {
     "crypto-js": "^4.1.1"
   },
-  "devDependencies": {
-    "@vercel/node": "^2.0.0"
-  },
   "engines": {
-    "node": ">=16.x"
+    "node": ">=18.x"
   }
 }
