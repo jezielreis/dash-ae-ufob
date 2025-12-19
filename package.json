@@ -1,7 +1,7 @@
 {
   "name": "dash-ae-ufob",
-  "version": "1.0.0",
-  "description": "Dashboard meteorológico para cálculo de ET0",
+  "version": "1.0.1",
+  "description": "Dashboard - Estação Metereológica da Area Experimental da Fazenda Escola da UFOB - Campus Barra",
   "main": "index.js",
   "scripts": {
     "dev": "vercel dev",
