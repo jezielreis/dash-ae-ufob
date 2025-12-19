@@ -1,10 +1,10 @@
 import CryptoJS from 'crypto-js';
 
 // ============================================
-// ET0 CALCULATOR - Correção do BUG de altitude
+// ET0 CALCULATOR (FAO-56) - Corrigido e Otimizado
 // ============================================
 
-class ET0Calculator {}
+class ET0Calculator {
     static REGION_PARAMS = {
         '031133E8': {
             latitude: -12.15,
@@ -18,9 +18,12 @@ class ET0Calculator {}
         const {
             temperatura_maxima,
             temperatura_minima,
+            umidade_relativa_max,
+            umidade_relativa_min,
             umidade_relativa_med,
             radiacao_solar,
-            velocidade_vento_2m
+            velocidade_vento_2m,
+            pressao_atmosferica
         } = params;
 
         const {
@@ -36,7 +39,9 @@ class ET0Calculator {}
         const es = (es_max + es_min) / 2;
         
         let ea;
-        if (umidade_relativa_med) {
+        if (umidade_relativa_max && umidade_relativa_min) {
+            ea = (es_min * (umidade_relativa_max / 100) + es_max * (umidade_relativa_min / 100)) / 2;
+        } else if (umidade_relativa_med) {
             ea = es * (umidade_relativa_med / 100);
         } else {
             ea = es * 0.70;
@@ -44,16 +49,15 @@ class ET0Calculator {}
         
         const VPD = es - ea;
         const delta = (4098 * es) / Math.pow(Tmean + 237.3, 2);
-        const P = this.calculateAtmosphericPressure(altitude);
+        const P = pressao_atmosferica || this.calculateAtmosphericPressure(altitude);
         const gamma = 0.000665 * P;
         
-        // CORREÇÃO: Passando altitude como parâmetro
         const Rn = this.calculateNetRadiation(
             radiacao_solar, 
             Tmean, 
             ea, 
             latitude, 
-            altitude,  // <-- AGORA ESTÁ CORRETO
+            altitude,
             julianDay
         );
         
@@ -103,7 +107,6 @@ class ET0Calculator {}
         return Ra;
     }
 
-    // CORREÇÃO: Método agora recebe altitude
     static calculateNetRadiation(Rs, Tmean, ea, latitude, altitude, julianDay) {
         const albedo = 0.23;
         const Rns = (1 - albedo) * Rs;
@@ -111,7 +114,6 @@ class ET0Calculator {}
         const Tmax_k = Tmean + 10 + 273.16;
         const Tmin_k = Tmean - 10 + 273.16;
         
-        // CORREÇÃO: Passando altitude para calculateClearSkyRadiation
         const Rso = this.calculateClearSkyRadiation(latitude, altitude, julianDay);
         const Rs_Rso = Math.min(Rs / Rso, 1.0);
         const cloudFactor = 1.35 * Rs_Rso - 0.35;
@@ -498,7 +500,7 @@ async function calculateET0(stationId, date, publicKey, privateKey) {
   } catch (error) {
     console.error('Erro no cálculo de ET0:', error);
     
-    // Fallback para estimativa sazonal específica para Oeste da Bahia
+    // Fallback para estimativa sazonal
     const month = new Date().getMonth();
     let defaultET0;
     
