@@ -1,8 +1,6 @@
 import CryptoJS from 'crypto-js';
 
-// Configuração específica para a estação 031133E8
-const TARGET_STATION_ID = '031133E8';
-
+// Módulo FieldClimateAPI incorporado diretamente
 const FieldClimateAPI = {
     baseUrl: "https://api.fieldclimate.com/v2",
     
@@ -258,11 +256,11 @@ const FieldClimateAPI = {
 // Funções auxiliares que usam a API
 async function testConnection(publicKey, privateKey) {
   try {
-    const stationInfo = await FieldClimateAPI.request('GET', `/station/${TARGET_STATION_ID}`, null, publicKey, privateKey);
+    const stations = await FieldClimateAPI.request('GET', '/user/stations', null, publicKey, privateKey);
     return {
       success: true,
       message: "Conexão estabelecida com sucesso",
-      stationsCount: 1
+      stationsCount: Array.isArray(stations) ? stations.length : 1
     };
   } catch (error) {
     return {
@@ -277,8 +275,8 @@ async function getUserInfo(publicKey, privateKey) {
     const userInfo = await FieldClimateAPI.request('GET', '/user', null, publicKey, privateKey);
     return {
       success: true,
-      stations_count: 1,
-      message: "Usuário autenticado com sucesso - Estação 031133E8"
+      stations_count: userInfo.stations_count || 0,
+      message: "Usuário autenticado com sucesso"
     };
   } catch (error) {
     return {
@@ -289,29 +287,15 @@ async function getUserInfo(publicKey, privateKey) {
 }
 
 async function getStations(publicKey, privateKey) {
-  try {
-    const stationInfo = await FieldClimateAPI.request('GET', `/station/${TARGET_STATION_ID}`, null, publicKey, privateKey);
-    
-    // Limpar dados sensíveis
-    const { api_keys, private_keys, tokens, ...safeStation } = stationInfo;
-    
-    // Retornar como array com único elemento
-    return [{
-      ...safeStation,
-      name: {
-        original: TARGET_STATION_ID,
-        custom: stationInfo.name || 'Estação Meteorológica UFOB'
-      }
-    }];
-  } catch (error) {
-    console.error('Erro ao buscar estação:', error);
-    return [];
-  }
+  const stations = await FieldClimateAPI.request('GET', '/user/stations', null, publicKey, privateKey);
+  return stations.map(station => {
+    const { api_keys, private_keys, tokens, ...safeStation } = station;
+    return safeStation;
+  });
 }
 
 async function getStationInfo(stationId, publicKey, privateKey) {
-  // Sempre retorna a estação alvo
-  const info = await FieldClimateAPI.request('GET', `/station/${TARGET_STATION_ID}`, null, publicKey, privateKey);
+  const info = await FieldClimateAPI.request('GET', `/station/${stationId}`, null, publicKey, privateKey);
   delete info?.api_keys;
   delete info?.private_keys;
   delete info?.tokens;
@@ -334,13 +318,13 @@ async function getStationLastData(stationId, hoursBack, publicKey, privateKey) {
   const from = formatDate(past);
   const to = formatDate(now);
   
-  return await FieldClimateAPI.request('GET', `/data/${TARGET_STATION_ID}/data/${from}/${to}`, null, publicKey, privateKey);
+  return await FieldClimateAPI.request('GET', `/data/${stationId}/data/${from}/${to}`, null, publicKey, privateKey);
 }
 
 async function calculateET0(stationId, date, publicKey, privateKey) {
   try {
-    // Obter dados da estação específica
-    const stationData = await getStationLastData(TARGET_STATION_ID, 24, publicKey, privateKey);
+    // Obter dados da estação
+    const stationData = await getStationLastData(stationId, 24, publicKey, privateKey);
     
     // Extrair parâmetros
     const params = FieldClimateAPI.extractMeteorologicalParameters(stationData);
@@ -395,68 +379,6 @@ async function calculateET0(stationId, date, publicKey, privateKey) {
   }
 }
 
-// Cache para dados da estação (em memória)
-let stationDataCache = {
-  timestamp: null,
-  data: null,
-  et0: null
-};
-
-// Função para obter dados com cache de 1 hora + 15 minutos (75 minutos)
-async function getCachedStationData(publicKey, privateKey) {
-  const CACHE_DURATION = 75 * 60 * 1000; // 75 minutos em milissegundos
-  const now = Date.now();
-  
-  // Verificar se o cache é válido
-  if (stationDataCache.data && 
-      stationDataCache.timestamp && 
-      (now - stationDataCache.timestamp) < CACHE_DURATION) {
-    console.log('📦 Retornando dados do cache');
-    return stationDataCache.data;
-  }
-  
-  console.log('🔄 Atualizando dados da estação (cache expirado)');
-  
-  try {
-    // Buscar dados atualizados
-    const stationInfo = await FieldClimateAPI.request('GET', `/station/${TARGET_STATION_ID}`, null, publicKey, privateKey);
-    const lastData = await getStationLastData(TARGET_STATION_ID, 24, publicKey, privateKey);
-    
-    // Calcular ET0
-    const params = FieldClimateAPI.extractMeteorologicalParameters(lastData);
-    const et0Result = FieldClimateAPI.selectET0CalculationMethod(params);
-    
-    // Preparar dados formatados
-    const formattedData = {
-      station: {
-        ...stationInfo,
-        name: {
-          original: TARGET_STATION_ID,
-          custom: stationInfo.name || 'Estação Meteorológica UFOB'
-        }
-      },
-      lastData: lastData,
-      et0: et0Result,
-      timestamp: now,
-      nextUpdate: now + CACHE_DURATION
-    };
-    
-    // Atualizar cache
-    stationDataCache = {
-      timestamp: now,
-      data: formattedData,
-      et0: et0Result
-    };
-    
-    return formattedData;
-    
-  } catch (error) {
-    console.error('Erro ao atualizar dados:', error);
-    // Retornar cache mesmo expirado em caso de erro
-    return stationDataCache.data;
-  }
-}
-
 export default async function handler(req, res) {
   // Configuração de CORS
   res.setHeader('Access-Control-Allow-Credentials', true);
@@ -483,14 +405,6 @@ export default async function handler(req, res) {
       ...params 
     } = req.body;
 
-    // Validar que apenas a estação alvo é acessada
-    if (stationId && stationId !== TARGET_STATION_ID) {
-      return res.status(403).json({
-        success: false,
-        message: 'Acesso permitido apenas à estação autorizada'
-      });
-    }
-
     // Obter chaves das variáveis de ambiente
     const publicKey = process.env.FIELDCLIMATE_PUBLIC_KEY;
     const privateKey = process.env.FIELDCLIMATE_PRIVATE_KEY;
@@ -514,58 +428,22 @@ export default async function handler(req, res) {
         break;
       
       case 'getStations':
-        // Usar cache para estações
-        const cachedData = await getCachedStationData(publicKey, privateKey);
-        result = cachedData ? [cachedData.station] : [];
+        result = await getStations(publicKey, privateKey);
         break;
       
       case 'getStationInfo':
-        const cached = await getCachedStationData(publicKey, privateKey);
-        result = cached ? cached.station : null;
+        if (!stationId) throw new Error('stationId é obrigatório');
+        result = await getStationInfo(stationId, publicKey, privateKey);
         break;
       
       case 'getStationLastData':
-        const cacheData = await getCachedStationData(publicKey, privateKey);
-        result = cacheData ? cacheData.lastData : null;
-        break;
-      
-      case 'getCachedData':
-        // Nova ação para obter dados completos do cache
-        const fullCache = await getCachedStationData(publicKey, privateKey);
-        result = fullCache || {
-          success: false,
-          message: 'Nenhum dado em cache disponível'
-        };
+        if (!stationId) throw new Error('stationId é obrigatório');
+        result = await getStationLastData(stationId, hoursBack, publicKey, privateKey);
         break;
       
       case 'calculateET0':
-        const et0Cache = await getCachedStationData(publicKey, privateKey);
-        if (et0Cache && et0Cache.et0) {
-          result = {
-            success: true,
-            data: {
-              ...et0Cache.et0,
-              value: et0Cache.et0.value,
-              unit: 'mm/dia',
-              date: date || new Date().toISOString().split('T')[0],
-              calculated: true
-            }
-          };
-        } else {
-          // Calcular se não tiver em cache
-          result = await calculateET0(TARGET_STATION_ID, date, publicKey, privateKey);
-        }
-        break;
-      
-      case 'forceRefresh':
-        // Forçar atualização do cache
-        stationDataCache = { timestamp: null, data: null, et0: null };
-        const refreshedData = await getCachedStationData(publicKey, privateKey);
-        result = {
-          success: true,
-          message: 'Cache atualizado com sucesso',
-          data: refreshedData
-        };
+        if (!stationId) throw new Error('stationId é obrigatório');
+        result = await calculateET0(stationId, date, publicKey, privateKey);
         break;
       
       default:
