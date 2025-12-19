@@ -1,6 +1,293 @@
 import CryptoJS from 'crypto-js';
 
-// Módulo FieldClimateAPI incorporado diretamente
+// ============================================
+// ET0 CALCULATOR (FAO-56) - Corrigido e Otimizado
+// ============================================
+
+class ET0Calculator {
+    static REGION_PARAMS = {
+        '031133E8': {
+            latitude: -12.15,
+            longitude: -45.00,
+            altitude: 400,
+            timezone: -3
+        }
+    };
+
+    static calculatePenmanMonteithFAO56(params, stationInfo) {
+        const {
+            temperatura_maxima,
+            temperatura_minima,
+            umidade_relativa_max,
+            umidade_relativa_min,
+            umidade_relativa_med,
+            radiacao_solar,
+            velocidade_vento_2m,
+            pressao_atmosferica
+        } = params;
+
+        const {
+            latitude,
+            altitude = 400,
+            julianDay = this.getJulianDay()
+        } = stationInfo;
+
+        const Tmean = (temperatura_maxima + temperatura_minima) / 2;
+        
+        const es_max = 0.6108 * Math.exp((17.27 * temperatura_maxima) / (temperatura_maxima + 237.3));
+        const es_min = 0.6108 * Math.exp((17.27 * temperatura_minima) / (temperatura_minima + 237.3));
+        const es = (es_max + es_min) / 2;
+        
+        let ea;
+        if (umidade_relativa_max && umidade_relativa_min) {
+            ea = (es_min * (umidade_relativa_max / 100) + es_max * (umidade_relativa_min / 100)) / 2;
+        } else if (umidade_relativa_med) {
+            ea = es * (umidade_relativa_med / 100);
+        } else {
+            ea = es * 0.70;
+        }
+        
+        const VPD = es - ea;
+        const delta = (4098 * es) / Math.pow(Tmean + 237.3, 2);
+        const P = pressao_atmosferica || this.calculateAtmosphericPressure(altitude);
+        const gamma = 0.000665 * P;
+        
+        const Rn = this.calculateNetRadiation(
+            radiacao_solar, 
+            Tmean, 
+            ea, 
+            latitude, 
+            altitude,
+            julianDay
+        );
+        
+        const G = 0;
+        const u2 = velocidade_vento_2m || 2.0;
+        
+        const numerador = (0.408 * delta * (Rn - G)) + 
+                         (gamma * (900 / (Tmean + 273)) * u2 * VPD);
+        const denominador = delta + (gamma * (1 + 0.34 * u2));
+        
+        const ET0 = numerador / denominador;
+        
+        return Math.max(0, ET0);
+    }
+
+    static calculateHargreavesSamani(Tmax, Tmin, latitude, julianDay) {
+        const Tmean = (Tmax + Tmin) / 2;
+        const TR = Tmax - Tmin;
+        
+        const Ra = this.calculateExtraterrestrialRadiation(latitude, julianDay);
+        const kRs = 0.19;
+        const ET0 = 0.0023 * (Tmean + 17.8) * Math.sqrt(TR) * Ra * kRs;
+        
+        return Math.max(0, ET0);
+    }
+
+    static calculatePriestleyTaylor(Tmean, Rn) {
+        const es = 0.6108 * Math.exp((17.27 * Tmean) / (Tmean + 237.3));
+        const delta = (4098 * es) / Math.pow(Tmean + 237.3, 2);
+        const gamma = 0.066;
+        const alpha = 1.26;
+        const ET0 = alpha * (delta / (delta + gamma)) * (Rn / 2.45);
+        
+        return Math.max(0, ET0);
+    }
+
+    static calculateExtraterrestrialRadiation(latitude, julianDay) {
+        const phi = latitude * (Math.PI / 180);
+        const delta = 0.409 * Math.sin((2 * Math.PI * julianDay / 365) - 1.39);
+        const dr = 1 + 0.033 * Math.cos(2 * Math.PI * julianDay / 365);
+        const omega_s = Math.acos(-Math.tan(phi) * Math.tan(delta));
+        const Gsc = 0.0820;
+        const Ra = (24 * 60 / Math.PI) * Gsc * dr * 
+                   (omega_s * Math.sin(phi) * Math.sin(delta) + 
+                    Math.cos(phi) * Math.cos(delta) * Math.sin(omega_s));
+        
+        return Ra;
+    }
+
+    static calculateNetRadiation(Rs, Tmean, ea, latitude, altitude, julianDay) {
+        const albedo = 0.23;
+        const Rns = (1 - albedo) * Rs;
+        const sigma = 4.903e-9;
+        const Tmax_k = Tmean + 10 + 273.16;
+        const Tmin_k = Tmean - 10 + 273.16;
+        
+        const Rso = this.calculateClearSkyRadiation(latitude, altitude, julianDay);
+        const Rs_Rso = Math.min(Rs / Rso, 1.0);
+        const cloudFactor = 1.35 * Rs_Rso - 0.35;
+        
+        const Rnl = sigma * ((Math.pow(Tmax_k, 4) + Math.pow(Tmin_k, 4)) / 2) * 
+                    (0.34 - 0.14 * Math.sqrt(ea)) * cloudFactor;
+        
+        const Rn = Rns - Rnl;
+        
+        return Math.max(0, Rn);
+    }
+
+    static calculateClearSkyRadiation(latitude, altitude, julianDay) {
+        const Ra = this.calculateExtraterrestrialRadiation(latitude, julianDay);
+        const transmissionFactor = 0.75 + (2e-5 * altitude);
+        return Ra * transmissionFactor;
+    }
+
+    static calculateAtmosphericPressure(altitude) {
+        const P0 = 101.3;
+        const tempK0 = 293;
+        const g = 9.807;
+        const M = 0.0289644;
+        const R = 8.31447;
+        
+        const P = P0 * Math.pow((tempK0 - (0.0065 * altitude)) / tempK0, 
+                               (g * M) / (R * 0.0065));
+        
+        return P;
+    }
+
+    static convertSolarRadiationToDaily(solarRadiationW) {
+        return (solarRadiationW * 0.0864);
+    }
+
+    static getJulianDay(date = new Date()) {
+        const start = new Date(date.getFullYear(), 0, 0);
+        const diff = date - start;
+        const oneDay = 1000 * 60 * 60 * 24;
+        return Math.floor(diff / oneDay);
+    }
+
+    static selectBestMethod(params, stationId) {
+        const {
+            temperatura_maxima,
+            temperatura_minima,
+            umidade_relativa_med,
+            radiacao_solar,
+            velocidade_vento_2m
+        } = params;
+
+        let method = '';
+        let et0Value = 0;
+        let quality = 'muito_baixa';
+        let usedParams = {};
+
+        const stationInfo = this.REGION_PARAMS[stationId] || {
+            latitude: -12.15,
+            altitude: 400,
+            timezone: -3
+        };
+
+        // MÉTODO 1: Penman-Monteith FAO-56 Completo
+        if (temperatura_maxima && temperatura_minima && radiacao_solar && umidade_relativa_med && velocidade_vento_2m) {
+            try {
+                let Rs_MJ = radiacao_solar;
+                if (radiacao_solar > 1000) {
+                    Rs_MJ = this.convertSolarRadiationToDaily(radiacao_solar);
+                }
+                
+                const et0Params = {
+                    temperatura_maxima,
+                    temperatura_minima,
+                    umidade_relativa_med,
+                    radiacao_solar: Rs_MJ,
+                    velocidade_vento_2m
+                };
+                
+                et0Value = this.calculatePenmanMonteithFAO56(et0Params, stationInfo);
+                method = 'penman_monteith_fao56';
+                quality = 'alta';
+                
+                usedParams = {
+                    temperatura_maxima: temperatura_maxima.toFixed(1),
+                    temperatura_minima: temperatura_minima.toFixed(1),
+                    umidade_relativa: umidade_relativa_med.toFixed(0),
+                    radiacao_solar: Rs_MJ.toFixed(2),
+                    velocidade_vento: velocidade_vento_2m.toFixed(1)
+                };
+                
+            } catch (error) {
+                console.error('Erro no método Penman-Monteith:', error);
+            }
+        }
+
+        // MÉTODO 2: Hargreaves-Samani
+        if ((method === '' || quality === 'muito_baixa') && 
+            temperatura_maxima && temperatura_minima) {
+            try {
+                const julianDay = this.getJulianDay();
+                et0Value = this.calculateHargreavesSamani(
+                    temperatura_maxima, 
+                    temperatura_minima, 
+                    stationInfo.latitude,
+                    julianDay
+                );
+                method = 'hargreaves_samani';
+                quality = 'media';
+                
+                usedParams = {
+                    temperatura_maxima: temperatura_maxima.toFixed(1),
+                    temperatura_minima: temperatura_minima.toFixed(1),
+                    latitude: stationInfo.latitude.toFixed(2)
+                };
+                
+            } catch (error) {
+                console.error('Erro no método Hargreaves-Samani:', error);
+            }
+        }
+
+        // MÉTODO 3: Priestley-Taylor
+        if ((method === '' || quality === 'muito_baixa') && 
+            temperatura_maxima && temperatura_minima && radiacao_solar) {
+            try {
+                const Tmean = (temperatura_maxima + temperatura_minima) / 2;
+                let Rs_MJ = radiacao_solar;
+                if (radiacao_solar > 1000) {
+                    Rs_MJ = this.convertSolarRadiationToDaily(radiacao_solar);
+                }
+                
+                const Rn = Rs_MJ * 0.77;
+                et0Value = this.calculatePriestleyTaylor(Tmean, Rn);
+                method = 'priestley_taylor';
+                quality = 'media';
+                
+                usedParams = {
+                    temperatura_media: Tmean.toFixed(1),
+                    radiacao_solar: Rs_MJ.toFixed(2)
+                };
+                
+            } catch (error) {
+                console.error('Erro no método Priestley-Taylor:', error);
+            }
+        }
+
+        // MÉTODO 4: Estimativa por temperatura
+        if (method === '' || quality === 'muito_baixa') {
+            const Tmean = temperatura_maxima && temperatura_minima ? 
+                         (temperatura_maxima + temperatura_minima) / 2 : 
+                         25;
+            
+            et0Value = 0.3 * Tmean;
+            method = 'estimativa_temperatura';
+            quality = 'baixa';
+            
+            usedParams = {
+                temperatura_estimada: Tmean.toFixed(1),
+                regiao: 'oeste_bahia'
+            };
+        }
+
+        return {
+            value: Math.max(0, parseFloat(et0Value.toFixed(2))),
+            method,
+            quality,
+            parameters: usedParams
+        };
+    }
+}
+
+// ============================================
+// FIELDCLIMATE API (Integrada com ET0 Calculator)
+// ============================================
+
 const FieldClimateAPI = {
     baseUrl: "https://api.fieldclimate.com/v2",
     
@@ -55,15 +342,14 @@ const FieldClimateAPI = {
         }
     },
     
-    // Métodos de cálculo de ET0
     extractMeteorologicalParameters(data) {
         const params = {
             temperatura_media: null,
             temperatura_maxima: null,
             temperatura_minima: null,
-            umidade_relativa: null,
+            umidade_relativa_med: null,
             radiacao_solar: null,
-            velocidade_vento: null,
+            velocidade_vento_2m: null,
             chuva: null
         };
         
@@ -87,7 +373,7 @@ const FieldClimateAPI = {
             }
             
             if (humids.length > 0) {
-                params.umidade_relativa = humids.reduce((a, b) => a + b) / humids.length;
+                params.umidade_relativa_med = humids.reduce((a, b) => a + b) / humids.length;
             }
             
             if (solar.length > 0) {
@@ -95,151 +381,15 @@ const FieldClimateAPI = {
             }
             
             if (winds.length > 0) {
-                params.velocidade_vento = winds.reduce((a, b) => a + b) / winds.length;
+                params.velocidade_vento_2m = winds.reduce((a, b) => a + b) / winds.length;
             }
         }
         
         return params;
     },
     
-    calculatePenmanMonteithET0(params) {
-        const Tmean = params.temperatura_media;
-        const RHmean = params.umidade_relativa;
-        const Rs = params.radiacao_solar;
-        const u2 = params.velocidade_vento || 2.0;
-        
-        // Pressão de vapor
-        const es = 0.6108 * Math.exp((17.27 * Tmean) / (Tmean + 237.3));
-        const ea = (RHmean / 100) * es;
-        const VPD = es - ea;
-        
-        // Declividade da curva de pressão de vapor
-        const delta = 4098 * es / Math.pow(Tmean + 237.3, 2);
-        
-        // Constante psicrométrica
-        const gamma = 0.665 * 0.001 * 101.3;
-        
-        // Radiação solar em MJ/m²/dia
-        const Rs_MJ = Rs * 0.0864;
-        
-        // Radiação líquida (simplificada)
-        const Rns = (1 - 0.23) * Rs_MJ;
-        const Rnl = 4.903e-9 * Math.pow(Tmean + 273.16, 4) * 
-                   (0.34 - 0.14 * Math.sqrt(ea)) * 
-                   (1.35 * (Rs_MJ / (0.75 * 24 * 0.0820)) - 0.35);
-        const Rn = Rns - Rnl;
-        const G = 0;
-        
-        // ET0 Penman-Monteith FAO-56 simplificado
-        const numerator = 0.408 * delta * (Rn - G) + 
-                         gamma * (900 / (Tmean + 273)) * u2 * VPD;
-        const denominator = delta + gamma * (1 + 0.34 * u2);
-        
-        const ET0 = numerator / denominator;
-        
-        return Math.max(0, ET0);
-    },
-    
-    calculateHargreavesET0(Tmax, Tmin, Rs) {
-        const Tmean = (Tmax + Tmin) / 2;
-        const Ra = Rs * 0.0864;
-        const ET0 = 0.0023 * Ra * (Tmean + 17.8) * Math.sqrt(Tmax - Tmin);
-        return ET0;
-    },
-    
-    calculateHargreavesTemperatureOnly(Tmax, Tmin) {
-        const Tmean = (Tmax + Tmin) / 2;
-        const tempRange = Tmax - Tmin;
-        const Ra_estimated = 15;
-        const ET0 = 0.0023 * Ra_estimated * Math.pow(tempRange, 0.674) * (Tmean - 3.5);
-        return ET0;
-    },
-    
-    estimateET0FromTemperature(Tmean) {
-        if (Tmean > 10) {
-            return 0.2 * Tmean;
-        } else {
-            return 0.1 * Tmean;
-        }
-    },
-    
-    selectET0CalculationMethod(params) {
-        const { 
-            temperatura_media, 
-            temperatura_maxima, 
-            temperatura_minima,
-            umidade_relativa,
-            radiacao_solar,
-            velocidade_vento 
-        } = params;
-        
-        let calculationMethod = '';
-        let et0Value = null;
-        let usedParameters = {};
-        
-        if (temperatura_media && umidade_relativa && radiacao_solar && velocidade_vento) {
-            et0Value = this.calculatePenmanMonteithET0(params);
-            calculationMethod = 'penman_monteith_completo';
-            usedParameters = {
-                temperatura_media: temperatura_media.toFixed(1),
-                umidade_relativa: umidade_relativa.toFixed(0),
-                radiacao_solar: radiacao_solar.toFixed(0),
-                velocidade_vento: velocidade_vento.toFixed(1)
-            };
-        }
-        else if (temperatura_maxima && temperatura_minima && radiacao_solar) {
-            et0Value = this.calculateHargreavesET0(
-                temperatura_maxima, 
-                temperatura_minima, 
-                radiacao_solar
-            );
-            calculationMethod = 'hargreaves_temperatura_radiacao';
-            usedParameters = {
-                temperatura_maxima: temperatura_maxima.toFixed(1),
-                temperatura_minima: temperatura_minima.toFixed(1),
-                radiacao_solar: radiacao_solar.toFixed(0)
-            };
-        }
-        else if (temperatura_maxima && temperatura_minima) {
-            et0Value = this.calculateHargreavesTemperatureOnly(
-                temperatura_maxima, 
-                temperatura_minima
-            );
-            calculationMethod = 'hargreaves_apenas_temperatura';
-            usedParameters = {
-                temperatura_maxima: temperatura_maxima.toFixed(1),
-                temperatura_minima: temperatura_minima.toFixed(1)
-            };
-        }
-        else if (temperatura_media) {
-            et0Value = this.estimateET0FromTemperature(temperatura_media);
-            calculationMethod = 'estimativa_temperatura_media';
-            usedParameters = { 
-                temperatura_media: temperatura_media.toFixed(1)
-            };
-        }
-        else {
-            et0Value = 3.5;
-            calculationMethod = 'estimativa_padrao';
-            usedParameters = {};
-        }
-        
-        et0Value = Math.max(0, parseFloat(et0Value.toFixed(1)));
-        
-        return {
-            value: et0Value,
-            method: calculationMethod,
-            parameters: usedParameters,
-            data_quality: this.assessDataQuality(usedParameters)
-        };
-    },
-    
-    assessDataQuality(parameters) {
-        const paramCount = Object.keys(parameters).length;
-        if (paramCount >= 4) return 'alta';
-        if (paramCount >= 2) return 'media';
-        if (paramCount >= 1) return 'baixa';
-        return 'muito_baixa';
+    calculateET0Adaptive(params, stationId) {
+        return ET0Calculator.selectBestMethod(params, stationId);
     },
     
     sanitizeError(errorText, publicKey, privateKey) {
@@ -253,7 +403,10 @@ const FieldClimateAPI = {
     }
 };
 
-// Funções auxiliares que usam a API
+// ============================================
+// FUNÇÕES AUXILIARES
+// ============================================
+
 async function testConnection(publicKey, privateKey) {
   try {
     const stations = await FieldClimateAPI.request('GET', '/user/stations', null, publicKey, privateKey);
@@ -329,8 +482,8 @@ async function calculateET0(stationId, date, publicKey, privateKey) {
     // Extrair parâmetros
     const params = FieldClimateAPI.extractMeteorologicalParameters(stationData);
     
-    // Calcular ET0 baseado nos parâmetros disponíveis
-    const et0Result = FieldClimateAPI.selectET0CalculationMethod(params);
+    // Calcular ET0 usando método adaptativo
+    const et0Result = FieldClimateAPI.calculateET0Adaptive(params, stationId);
     
     return {
       success: true,
@@ -341,22 +494,22 @@ async function calculateET0(stationId, date, publicKey, privateKey) {
         calculated: true,
         method: et0Result.method,
         parameters: et0Result.parameters,
-        data_quality: et0Result.data_quality
+        data_quality: et0Result.quality
       }
     };
   } catch (error) {
     console.error('Erro no cálculo de ET0:', error);
     
-    // Fallback final
+    // Fallback para estimativa sazonal
     const month = new Date().getMonth();
     let defaultET0;
     
     if (month >= 9 || month <= 2) {
-      defaultET0 = 4.5;
+      defaultET0 = 4.5;  // Verão/Outono - maior evapotranspiração
     } else if (month >= 3 && month <= 5) {
-      defaultET0 = 3.0;
+      defaultET0 = 3.0;  // Outono/Inverno
     } else {
-      defaultET0 = 2.5;
+      defaultET0 = 2.5;  // Inverno/Primavera
     }
     
     return {
@@ -369,18 +522,21 @@ async function calculateET0(stationId, date, publicKey, privateKey) {
         method: 'estimativa_sazonal',
         parameters: {
           mes_do_ano: month + 1,
-          regiao: 'sudeste_brasil',
+          regiao: 'oeste_bahia',
           fonte: 'media_sazonal'
         },
-        data_quality: 'muito_baixa',
-        note: 'Valor estimado baseado na média sazonal da região'
+        data_quality: 'baixa',
+        note: 'Valor estimado baseado na média sazonal da região Oeste da Bahia'
       }
     };
   }
 }
 
+// ============================================
+// API ROUTE HANDLER
+// ============================================
+
 export default async function handler(req, res) {
-  // Configuração de CORS
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
@@ -389,7 +545,6 @@ export default async function handler(req, res) {
     'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
   );
 
-  // Se for preflight request
   if (req.method === 'OPTIONS') {
     res.status(200).end();
     return;
@@ -405,7 +560,6 @@ export default async function handler(req, res) {
       ...params 
     } = req.body;
 
-    // Obter chaves das variáveis de ambiente
     const publicKey = process.env.FIELDCLIMATE_PUBLIC_KEY;
     const privateKey = process.env.FIELDCLIMATE_PRIVATE_KEY;
 
