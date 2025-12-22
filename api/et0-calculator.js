@@ -265,13 +265,115 @@ class ET0Calculator {
         return Math.floor(diff / oneDay);
     }
 
+
+ /**
+     * Busca dados de ET0 do arquivo XML/Gist para horários 00:00:00
+     * @param {String} stationId - ID da estação
+     * @param {String} targetDate - Data no formato YYYY-MM-DD
+     * @returns {Object|null} Dados de ET0 ou null se não encontrado
+     */
+    static async fetchET0FromGist(stationId, targetDate) {
+        try {
+            const gistUrl = 'https://gist.github.com/jezielreis/5aa95bed00d0ec12153b41f8f0370de0/raw/0e7fd4264365f7d20a532cfa1f34932b97f580bd/031133E8_station_data.xml';
+            
+            // Fazer requisição ao Gist
+            const response = await fetch(gistUrl);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            
+            const xmlText = await response.text();
+            
+            // Analisar XML simples (sem biblioteca externa)
+            const rows = [];
+            const rowMatches = xmlText.match(/<Row>[\s\S]*?<\/Row>/g);
+            
+            if (!rowMatches) return null;
+            
+            // Processar cada linha
+            for (const row of rowMatches) {
+                const cellMatches = row.match(/<Cell>[\s\S]*?<\/Cell>/g);
+                if (!cellMatches || cellMatches.length < 2) continue;
+                
+                // Primeira célula: Data/Horário
+                const dateTimeMatch = cellMatches[0].match(/<Data[^>]*>([^<]+)<\/Data>/);
+                if (!dateTimeMatch) continue;
+                
+                const dateTimeStr = dateTimeMatch[1].trim();
+                
+                // Verificar se é horário 00:00:00
+                if (!dateTimeStr.includes('00:00:00')) continue;
+                
+                // Extrair data (formato: DD/MM/YYYY HH:MM:SS)
+                const datePart = dateTimeStr.split(' ')[0];
+                const [day, month, year] = datePart.split('/');
+                const date = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+                
+                // Última célula: ET0 [mm]
+                const et0Match = cellMatches[cellMatches.length - 1].match(/<Data[^>]*>([^<]+)<\/Data>/);
+                if (!et0Match) continue;
+                
+                const et0Value = parseFloat(et0Match[1].trim());
+                if (isNaN(et0Value)) continue;
+                
+                rows.push({
+                    date: date,
+                    datetime: dateTimeStr,
+                    et0: et0Value
+                });
+            }
+            
+            // Encontrar dados para a data alvo
+            const targetData = rows.find(row => row.date === targetDate);
+            
+            if (targetData) {
+                return {
+                    value: targetData.et0,
+                    unit: 'mm/dia',
+                    date: targetData.date,
+                    source: 'xml_gist',
+                    quality: 'alta',
+                    note: `Valor extraído do arquivo XML (${targetData.datetime})`
+                };
+            }
+            
+            // Se não encontrar para a data específica, calcular média dos últimos 30 dias
+            const now = new Date();
+            const cutoffDate = new Date(now.setDate(now.getDate() - 30));
+            
+            const recentData = rows.filter(row => {
+                const rowDate = new Date(row.date);
+                return rowDate >= cutoffDate && rowDate <= new Date();
+            });
+            
+            if (recentData.length > 0) {
+                const sumET0 = recentData.reduce((acc, row) => acc + row.et0, 0);
+                const avgET0 = sumET0 / recentData.length;
+                
+                return {
+                    value: avgET0,
+                    unit: 'mm/dia',
+                    date: targetDate,
+                    source: 'xml_gist_average',
+                    quality: 'media',
+                    note: `Média dos últimos ${recentData.length} dias com ET0 disponível no XML`
+                };
+            }
+            
+            return null;
+            
+        } catch (error) {
+            console.error('Erro ao buscar ET0 do Gist:', error);
+            return null;
+        }
+    }
+
+
     /**
      * Seleciona o melhor método de cálculo baseado nos dados disponíveis
      * @param {Object} params - Parâmetros disponíveis
      * @param {Object} stationInfo - Informações da estação
      * @returns {Object} Resultado do cálculo
      */
-    static selectBestMethod(params, stationInfo) {
+   /* static selectBestMethod(params, stationInfo) {
         const {
             temperatura_maxima,
             temperatura_minima,
@@ -396,6 +498,162 @@ class ET0Calculator {
             method,
             quality,
             parameters: usedParams
+        };
+    }*/
+
+    /**
+     * Seleciona o melhor método de cálculo baseado nos dados disponíveis
+     * @param {Object} params - Parâmetros disponíveis
+     * @param {Object} stationInfo - Informações da estação
+     * @returns {Object} Resultado do cálculo
+     */
+    static async selectBestMethod(params, stationInfo) {
+        const {
+            temperatura_maxima,
+            temperatura_minima,
+            umidade_relativa_max,
+            umidade_relativa_min,
+            umidade_relativa_med,
+            radiacao_solar,  // EM MJ/m²/dia!
+            velocidade_vento_2m
+        } = params;
+
+        let method = '';
+        let et0Value = 0;
+        let quality = 'muito_baixa';
+        let usedParams = {};
+        let note = '';
+
+        // PRIMEIRO: Tentar buscar ET0 direto do XML do Gist
+        try {
+            const today = new Date().toISOString().split('T')[0];
+            const gistET0 = await this.fetchET0FromGist(stationInfo.id || '031133E8', today);
+            
+            if (gistET0) {
+                return {
+                    value: gistET0.value,
+                    method: gistET0.source,
+                    quality: gistET0.quality,
+                    parameters: {},
+                    note: gistET0.note,
+                    source: 'xml_gist'
+                };
+            }
+        } catch (error) {
+            console.log('Não foi possível obter ET0 do Gist:', error.message);
+            // Continua para outros métodos
+        }
+
+        // MÉTODO 1: Penman-Monteith FAO-56 Completo
+        if (temperatura_maxima && temperatura_minima && radiacao_solar) {
+            try {
+                // Converter radiação se necessário (verifica se está em W/m²)
+                let Rs_MJ = radiacao_solar;
+                if (radiacao_solar > 1000) { // Provavelmente está em W/m²
+                    Rs_MJ = this.convertSolarRadiationToDaily(radiacao_solar);
+                }
+                
+                const et0Params = {
+                    temperatura_maxima,
+                    temperatura_minima,
+                    umidade_relativa_max,
+                    umidade_relativa_min,
+                    umidade_relativa_med,
+                    radiacao_solar: Rs_MJ,
+                    velocidade_vento_2m
+                };
+                
+                et0Value = this.calculatePenmanMonteithFAO56(et0Params, stationInfo);
+                method = 'penman_monteith_fao56';
+                quality = 'alta';
+                
+                usedParams = {
+                    temperatura_maxima: temperatura_maxima.toFixed(1),
+                    temperatura_minima: temperatura_minima.toFixed(1),
+                    radiacao_solar: Rs_MJ.toFixed(2),
+                    velocidade_vento: velocidade_vento_2m?.toFixed(1) || '2.0 (padrão)'
+                };
+                
+            } catch (error) {
+                console.error('Erro no método Penman-Monteith:', error);
+            }
+        }
+
+        // MÉTODO 2: Hargreaves-Samani (se não tiver umidade/vento)
+        if ((method === '' || quality === 'muito_baixa') && 
+            temperatura_maxima && temperatura_minima) {
+            try {
+                const julianDay = this.getJulianDay();
+                et0Value = this.calculateHargreavesSamani(
+                    temperatura_maxima, 
+                    temperatura_minima, 
+                    stationInfo.latitude || -12.15,
+                    julianDay
+                );
+                method = 'hargreaves_samani';
+                quality = 'media';
+                
+                usedParams = {
+                    temperatura_maxima: temperatura_maxima.toFixed(1),
+                    temperatura_minima: temperatura_minima.toFixed(1),
+                    latitude: stationInfo.latitude?.toFixed(2) || '-12.15'
+                };
+                
+            } catch (error) {
+                console.error('Erro no método Hargreaves-Samani:', error);
+            }
+        }
+
+        // MÉTODO 3: Priestley-Taylor (se tiver radiação)
+        if ((method === '' || quality === 'muito_baixa') && 
+            temperatura_maxima && temperatura_minima && radiacao_solar) {
+            try {
+                const Tmean = (temperatura_maxima + temperatura_minima) / 2;
+                let Rs_MJ = radiacao_solar;
+                if (radiacao_solar > 1000) {
+                    Rs_MJ = this.convertSolarRadiationToDaily(radiacao_solar);
+                }
+                
+                // Calcular radiação líquida simplificada
+                const Rn = Rs_MJ * 0.77; // Aproximação
+                
+                et0Value = this.calculatePriestleyTaylor(Tmean, Rn);
+                method = 'priestley_taylor';
+                quality = 'media';
+                
+                usedParams = {
+                    temperatura_media: Tmean.toFixed(1),
+                    radiacao_solar: Rs_MJ.toFixed(2)
+                };
+                
+            } catch (error) {
+                console.error('Erro no método Priestley-Taylor:', error);
+            }
+        }
+
+        // MÉTODO 4: Estimativa por temperatura (fallback)
+        if (method === '' || quality === 'muito_baixa') {
+            const Tmean = temperatura_maxima && temperatura_minima ? 
+                         (temperatura_maxima + temperatura_minima) / 2 : 
+                         25; // Default para Oeste da Bahia
+            
+            // Fórmula empírica para semiárido
+            et0Value = 0.3 * Tmean;
+            method = 'estimativa_temperatura';
+            quality = 'baixa';
+            
+            usedParams = {
+                temperatura_estimada: Tmean.toFixed(1),
+                regiao: 'oeste_bahia'
+            };
+        }
+
+        return {
+            value: Math.max(0, parseFloat(et0Value.toFixed(2))),
+            method,
+            quality,
+            parameters: usedParams,
+            note
         };
     }
 

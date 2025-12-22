@@ -388,9 +388,9 @@ const FieldClimateAPI = {
         return params;
     },
     
-    calculateET0Adaptive(params, stationId) {
+    /*calculateET0Adaptive(params, stationId) {
         return ET0Calculator.selectBestMethod(params, stationId);
-    },
+    },*/
     
     sanitizeError(errorText, publicKey, privateKey) {
         return errorText
@@ -474,7 +474,7 @@ async function getStationLastData(stationId, hoursBack, publicKey, privateKey) {
   return await FieldClimateAPI.request('GET', `/data/${stationId}/data/${from}/${to}`, null, publicKey, privateKey);
 }
 
-async function calculateET0(stationId, date, publicKey, privateKey) {
+/*async function calculateET0(stationId, date, publicKey, privateKey) {
   try {
     // Obter dados da estação
     const stationData = await getStationLastData(stationId, 24, publicKey, privateKey);
@@ -530,6 +530,104 @@ async function calculateET0(stationId, date, publicKey, privateKey) {
       }
     };
   }
+}*/
+
+// LOCAL EXATO: Substituir a função calculateET0 existente
+
+async function calculateET0(stationId, date, publicKey, privateKey) {
+    try {
+        // Obter dados da estação
+        const stationData = await getStationLastData(stationId, 24, publicKey, privateKey);
+        
+        // Extrair parâmetros
+        const params = FieldClimateAPI.extractMeteorologicalParameters(stationData);
+        
+        // IMPORTAR E USAR ET0Calculator
+        const ET0Calculator = (await import('./et0-calculator.js')).default;
+        
+        const stationInfo = ET0Calculator.REGION_PARAMS[stationId] || {
+            latitude: -12.15,
+            altitude: 400,
+            timezone: -3,
+            id: stationId
+        };
+        
+        // Chamar selectBestMethod de forma assíncrona
+        const et0Result = await ET0Calculator.selectBestMethod(params, stationInfo);
+        
+        return {
+            success: true,
+            data: {
+                value: et0Result.value,
+                unit: 'mm/dia',
+                date: date || new Date().toISOString().split('T')[0],
+                calculated: true,
+                method: et0Result.method,
+                parameters: et0Result.parameters,
+                data_quality: et0Result.quality,
+                note: et0Result.note || '',
+                source: et0Result.source || 'calculated'
+            }
+        };
+    } catch (error) {
+        console.error('Erro no cálculo de ET0:', error);
+        
+        // Fallback: tentar buscar do Gist diretamente
+        try {
+            const ET0Calculator = (await import('./et0-calculator.js')).default;
+            const targetDate = date || new Date().toISOString().split('T')[0];
+            const gistET0 = await ET0Calculator.fetchET0FromGist(stationId, targetDate);
+            
+            if (gistET0) {
+                return {
+                    success: true,
+                    data: {
+                        value: gistET0.value,
+                        unit: gistET0.unit,
+                        date: targetDate,
+                        calculated: false,
+                        method: 'gist_xml',
+                        parameters: {},
+                        data_quality: gistET0.quality,
+                        note: gistET0.note,
+                        source: 'gist'
+                    }
+                };
+            }
+        } catch (gistError) {
+            console.error('Erro ao buscar do Gist:', gistError);
+        }
+        
+        // Fallback original para estimativa sazonal
+        const month = new Date().getMonth();
+        let defaultET0;
+        
+        if (month >= 9 || month <= 2) {
+            defaultET0 = 4.5;  // Verão/Outono - maior evapotranspiração
+        } else if (month >= 3 && month <= 5) {
+            defaultET0 = 3.0;  // Outono/Inverno
+        } else {
+            defaultET0 = 2.5;  // Inverno/Primavera
+        }
+        
+        return {
+            success: true,
+            data: {
+                value: defaultET0,
+                unit: 'mm/dia',
+                date: date || new Date().toISOString().split('T')[0],
+                calculated: true,
+                method: 'estimativa_sazonal',
+                parameters: {
+                    mes_do_ano: month + 1,
+                    regiao: 'oeste_bahia',
+                    fonte: 'media_sazonal'
+                },
+                data_quality: 'baixa',
+                note: 'Valor estimado baseado na média sazonal da região Oeste da Bahia'
+            }
+        };
+    }
 }
 
 // ============================================

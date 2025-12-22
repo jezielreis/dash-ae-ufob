@@ -625,6 +625,9 @@
             <button onclick="clearResults()" id="btnClear" class="btn-warning">
                 🗑️ Limpar
             </button>
+            <button onclick="showXMLStats()" style="background: #805ad5;">
+                📊 Ver Estatísticas XML
+            </button>
         </div>
         
         <div class="result-area">
@@ -636,7 +639,7 @@
         <div class="modal-overlay" id="modalOverlay">
             <div class="modal">
                 <div class="modal-header">
-                    <h3 id="modalTitle">Detalhes da Estação</h3>
+                    <h3 id="modalTitle">Detalhes da Estaçãoddh3>
                     <button class="modal-close" onclick="closeModal()">&times;</button>
                 </div>
                 <div class="modal-content">
@@ -649,7 +652,7 @@
         </div>
         
         <footer>
-            <img src="img/geias.jpg" alt="Logotipo Geias" class="footer-img" height="48">
+            <img src="img/geias.png" alt="Logotipo Geias" class="footer-img" height="48"> 
             <img src="img/cmb.png" alt="Logotipo UFOB CMbarra" class="footer-img" height="48">
              <p>
         <strong>GEIAS – Grupo de Estudos em Irrigação e Agrometeorologia no Semiárido</strong><br>
@@ -1559,9 +1562,99 @@
         }
     }
     
+
+    // ============================================
+    // FUNÇÃO PARA ANALISAR DADOS DO XML
+    // ============================================
+    
+    async function showXMLStats() {
+        setLoading(true);
+        showStatus('Analisando dados do XML...', 'info');
+        
+        try {
+            // Criar uma requisição simples para o XML
+            const response = await fetch('https://gist.github.com/jezielreis/5aa95bed00d0ec12153b41f8f0370de0/raw/0e7fd4264365f7d20a532cfa1f34932b97f580bd/031133E8_station_data.xml');
+            const xmlText = await response.text();
+            
+            // Extrair dados de ET0 (00:00:00)
+            const et0Values = [];
+            const rowMatches = xmlText.match(/<Row>[\s\S]*?<\/Row>/g) || [];
+            
+            for (const row of rowMatches) {
+                const cells = row.match(/<Cell>[\s\S]*?<\/Cell>/g);
+                if (!cells || cells.length < 2) continue;
+                
+                // Verificar se é horário 00:00:00
+                const dateTimeMatch = cells[0].match(/<Data[^>]*>([^<]+)<\/Data>/);
+                if (!dateTimeMatch || !dateTimeMatch[1].includes('00:00:00')) continue;
+                
+                // Extrair ET0
+                const et0Match = cells[cells.length - 1].match(/<Data[^>]*>([^<]+)<\/Data>/);
+                if (!et0Match) continue;
+                
+                const et0Value = parseFloat(et0Match[1].trim());
+                if (!isNaN(et0Value)) {
+                    et0Values.push(et0Value);
+                }
+            }
+            
+            if (et0Values.length > 0) {
+                const sum = et0Values.reduce((a, b) => a + b, 0);
+                const avg = sum / et0Values.length;
+                const max = Math.max(...et0Values);
+                const min = Math.min(...et0Values);
+                
+                const html = `
+                    <div class="station-card">
+                        <h3>📊 Estatísticas do Arquivo XML</h3>
+                        <p>Dados extraídos dos horários 00:00:00</p>
+                        
+                        <div class="parameters-grid">
+                            <div class="parameter-card">
+                                <div class="parameter-value">${et0Values.length}</div>
+                                <div class="parameter-label">Registros ET0</div>
+                            </div>
+                            <div class="parameter-card">
+                                <div class="parameter-value">${avg.toFixed(2)}</div>
+                                <div class="parameter-label">Média (mm/dia)</div>
+                            </div>
+                            <div class="parameter-card">
+                                <div class="parameter-value">${max.toFixed(2)}</div>
+                                <div class="parameter-label">Máximo (mm/dia)</div>
+                            </div>
+                            <div class="parameter-card">
+                                <div class="parameter-value">${min.toFixed(2)}</div>
+                                <div class="parameter-label">Mínimo (mm/dia)</div>
+                            </div>
+                        </div>
+                        
+                        <div style="margin-top: 20px; background: #f8f9fa; padding: 15px; border-radius: 8px;">
+                            <h4>📈 Distribuição dos Valores</h4>
+                            <p><strong>Fonte:</strong> Arquivo XML do Gist</p>
+                            <p><strong>Última atualização:</strong> Manual (atualize o arquivo no Gist)</p>
+                            <p><strong>Uso:</strong> Estes valores serão usados automaticamente quando a API não estiver disponível</p>
+                        </div>
+                    </div>
+                `;
+                
+                dataContainer.innerHTML = html;
+                showStatus(`✅ ${et0Values.length} valores de ET0 encontrados no XML`, 'success');
+            } else {
+                showStatus('⚠️ Nenhum valor de ET0 encontrado no XML para horários 00:00:00', 'warning');
+            }
+            
+        } catch (error) {
+            showStatus(`❌ Erro ao analisar XML: ${error.message}`, 'error');
+        } finally {
+            setLoading(false);
+        }
+    }
+
     // ============================================
     // INICIALIZAÇÃO
     // ============================================
+
+
     
     document.addEventListener('DOMContentLoaded', () => {
         // Carregar estações do cache
