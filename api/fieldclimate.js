@@ -533,69 +533,45 @@ export default async function handler(req, res) {
     const publicKey = process.env.FIELDCLIMATE_PUBLIC_KEY;
     const privateKey = process.env.FIELDCLIMATE_PRIVATE_KEY;
 
+    // Verificar chaves apenas para ações que precisam da API FieldClimate
+    const needsApiKeys = ['testConnection', 'getUserInfo', 'getStations', 'getStationInfo', 'getStationLastData', 'calculateET0'];
+    
+    if (needsApiKeys.includes(action)) {
+      if (!publicKey || !privateKey) {
+        return res.status(500).json({ 
+          success: false, 
+          message: 'Chaves da API não configuradas no servidor.' 
+        });
+      }
+    }
+
     let result;
 
     switch (action) {
       case 'testConnection':
-        if (!publicKey || !privateKey) {
-          return res.status(500).json({ 
-            success: false, 
-            message: 'Chaves da API não configuradas no servidor.' 
-          });
-        }
         result = await testConnection(publicKey, privateKey);
         break;
       
       case 'getUserInfo':
-        if (!publicKey || !privateKey) {
-          return res.status(500).json({ 
-            success: false, 
-            message: 'Chaves da API não configuradas no servidor.' 
-          });
-        }
         result = await getUserInfo(publicKey, privateKey);
         break;
       
       case 'getStations':
-        if (!publicKey || !privateKey) {
-          return res.status(500).json({ 
-            success: false, 
-            message: 'Chaves da API não configuradas no servidor.' 
-          });
-        }
         result = await getStations(publicKey, privateKey);
         break;
       
       case 'getStationInfo':
         if (!stationId) throw new Error('stationId é obrigatório');
-        if (!publicKey || !privateKey) {
-          return res.status(500).json({ 
-            success: false, 
-            message: 'Chaves da API não configuradas no servidor.' 
-          });
-        }
         result = await getStationInfo(stationId, publicKey, privateKey);
         break;
       
       case 'getStationLastData':
         if (!stationId) throw new Error('stationId é obrigatório');
-        if (!publicKey || !privateKey) {
-          return res.status(500).json({ 
-            success: false, 
-            message: 'Chaves da API não configuradas no servidor.' 
-          });
-        }
         result = await getStationLastData(stationId, hoursBack, publicKey, privateKey);
         break;
       
       case 'calculateET0':
         if (!stationId) throw new Error('stationId é obrigatório');
-        if (!publicKey || !privateKey) {
-          return res.status(500).json({ 
-            success: false, 
-            message: 'Chaves da API não configuradas no servidor.' 
-          });
-        }
         result = await calculateET0(stationId, date, publicKey, privateKey);
         break;
       
