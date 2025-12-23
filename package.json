@@ -9,8 +9,7 @@
     "build": "echo 'Build não necessário para estáticos'"
   },
   "dependencies": {
-    "crypto-js": "^4.1.1",
-    "xml2js": "^0.6.2"
+    "crypto-js": "^4.1.1"
   },
   "engines": {
     "node": ">=18.x"
