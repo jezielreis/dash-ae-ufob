@@ -3,611 +3,558 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Meteorológico - Monitoramento Inteligente</title>
+    <title>Estação Meteorológica da Área Experimental/Fazenda Escola | UFOB - Campus Barra</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     <style>
-    * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-    }
-    
-    body {
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        background: #f8f9fa;
-        min-height: 100vh;
-        padding: 20px;
-        color: #333;
-        line-height: 1.6;
-    }
-    
-    .container {
-        max-width: 1400px;
-        margin: 0 auto;
-        background: white;
-        border-radius: 10px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-        overflow: hidden;
-        border: 1px solid #e0e0e0;
-    }
-    
-    header {
-        background: #68955E;
-        color: white;
-        padding: 30px 40px;
-        text-align: center;
-        position: relative;
-        overflow: hidden;
-    }
-    
-    header::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 5px;
-        background: linear-gradient(90deg, #AD2624, #949108, #68955E);
-    }
-    
-    h1 {
-        font-size: 2.4em;
-        margin-bottom: 10px;
-        font-weight: 700;
-        color: white;
-    }
-    
-    .controls {
-        background: white;
-        padding: 20px 40px;
-        display: flex;
-        gap: 12px;
-        flex-wrap: wrap;
-        align-items: center;
-        justify-content: center;
-        border-bottom: 1px solid #eaeaea;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.04);
-    }
-    
-    button {
-        background: #68955E;
-        color: white;
-        border: none;
-        padding: 12px 24px;
-        border-radius: 6px;
-        cursor: pointer;
-        font-size: 15px;
-        font-weight: 600;
-        transition: all 0.3s ease;
-        border: 1px solid rgba(0,0,0,0.1);
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    
-    button:hover {
-        background: #949108;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 8px rgba(148, 145, 8, 0.2);
-    }
-    
-    button:active {
-        transform: translateY(0);
-    }
-    
-    button:disabled {
-        background: #95a5a6;
-        cursor: not-allowed;
-        transform: none;
-        box-shadow: none;
-    }
-    
-    .btn-success {
-        background: #68955E;
-    }
-    
-    .btn-success:hover {
-        background: #5a814f;
-    }
-    
-    .btn-warning {
-        background: #FDF3BE;
-        color: #333;
-        border: 1px solid #e0e0e0;
-    }
-    
-    .btn-warning:hover {
-        background: #FDCCA3;
-        color: #333;
-    }
-    
-    .btn-danger {
-        background: #AD2624;
-    }
-    
-    .btn-danger:hover {
-        background: #CC3300;
-    }
-    
-    .result-area {
-        padding: 30px 40px;
-        min-height: 400px;
-        background: white;
-    }
-    
-    .status {
-        padding: 15px 20px;
-        margin-bottom: 20px;
-        border-radius: 8px;
-        font-weight: 600;
-        border-left: 4px solid;
-        background: #f8f9fa;
-    }
-    
-    .status.success {
-        border-left-color: #68955E;
-        background: #f0f9f0;
-        color: #2d5a2d;
-    }
-    
-    .status.error {
-        border-left-color: #AD2624;
-        background: #fdf2f2;
-        color: #7b2a2a;
-    }
-    
-    .status.info {
-        border-left-color: #949108;
-        background: #fffdf0;
-        color: #6b6610;
-    }
-    
-    .status.warning {
-        border-left-color: #CC3300;
-        background: #fff4f0;
-        color: #8a3a1a;
-    }
-    
-    .data-container {
-        background: white;
-        border-radius: 10px;
-        padding: 25px;
-        margin-top: 20px;
-        max-height: 600px;
-        overflow-y: auto;
-        border: 1px solid #eaeaea;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.04);
-    }
-    
-    .station-card {
-        background: white;
-        border: 1px solid #e0e0e0;
-        border-radius: 10px;
-        padding: 20px;
-        margin-bottom: 20px;
-        transition: all 0.3s ease;
-        position: relative;
-    }
-    
-    .station-card:hover {
-        border-color: #68955E;
-        box-shadow: 0 4px 12px rgba(104, 149, 94, 0.1);
-    }
-    
-    .station-card h3 {
-        color: #68955E;
-        margin-bottom: 15px;
-        font-size: 1.4em;
-        font-weight: 700;
-        padding-bottom: 10px;
-        border-bottom: 2px solid #f0f0f0;
-    }
-    
-    .station-info {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 15px;
-        margin-top: 15px;
-    }
-    
-    .info-item {
-        display: flex;
-        justify-content: space-between;
-        padding: 10px 0;
-        border-bottom: 1px solid #f0f0f0;
-        align-items: center;
-    }
-    
-    .info-item:last-child {
-        border-bottom: none;
-    }
-    
-    .info-label {
-        font-weight: 600;
-        color: #555;
-        font-size: 14px;
-    }
-    
-    .info-value {
-        color: #333;
-        font-weight: 500;
-        font-size: 15px;
-    }
-    
-    .highlight {
-        color: #AD2624;
-        font-weight: 700;
-    }
-    
-    .data-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-        gap: 25px;
-        margin-top: 25px;
-    }
-    
-    .data-card {
-        background: white;
-        border: 1px solid #e0e0e0;
-        border-radius: 10px;
-        padding: 20px;
-        transition: all 0.3s ease;
-        position: relative;
-        overflow: hidden;
-    }
-    
-    .data-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 8px 20px rgba(0,0,0,0.1);
-        border-color: #68955E;
-    }
-    
-    .data-card::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 4px;
-        background: linear-gradient(90deg, #AD2624, #949108, #68955E);
-    }
-    
-    .data-card-header {
-        display: flex;
-        align-items: center;
-        margin-bottom: 20px;
-        padding-bottom: 15px;
-        border-bottom: 1px solid #f0f0f0;
-    }
-    
-    .data-card-header h3 {
-        color: #68955E;
-        margin-left: 12px;
-        font-size: 1.2em;
-        font-weight: 700;
-    }
-    
-    .data-card-icon {
-        font-size: 24px;
-        color: #949108;
-        background: #f8f9fa;
-        padding: 10px;
-        border-radius: 8px;
-    }
-    
-    .last-update {
-        text-align: center;
-        margin-top: 30px;
-        color: #666;
-        font-size: 0.9em;
-        padding: 15px;
-        background: #f8f9fa;
-        border-radius: 8px;
-        border: 1px solid #eaeaea;
-    }
-    
-    footer {
-        text-align: center;
-        padding: 25px;
-        color: #666;
-        font-size: 14px;
-        border-top: 1px solid #eaeaea;
-        background: #f8f9fa;
-    }
-    
-    .modal-overlay {
-        display: none;
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0,0,0,0.7);
-        z-index: 1000;
-        justify-content: center;
-        align-items: center;
-        padding: 20px;
-    }
-    
-    .modal {
-        background: white;
-        border-radius: 12px;
-        width: 90%;
-        max-width: 800px;
-        max-height: 85vh;
-        overflow-y: auto;
-        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-        animation: modalFadeIn 0.3s ease;
-        border: 1px solid #e0e0e0;
-    }
-    
-    @keyframes modalFadeIn {
-        from { opacity: 0; transform: translateY(-20px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-    
-    .modal-header {
-        background: #68955E;
-        color: white;
-        padding: 20px 30px;
-        border-radius: 12px 12px 0 0;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        position: relative;
-    }
-    
-    .modal-header::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 4px;
-        background: linear-gradient(90deg, #AD2624, #949108, #68955E);
-    }
-    
-    .modal-header h3 {
-        margin: 0;
-        color: white;
-        font-weight: 700;
-    }
-    
-    .modal-close {
-        background: rgba(255,255,255,0.2);
-        border: none;
-        color: white;
-        font-size: 24px;
-        cursor: pointer;
-        padding: 0;
-        width: 36px;
-        height: 36px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 50%;
-        transition: all 0.3s ease;
-    }
-    
-    .modal-close:hover {
-        background: rgba(255,255,255,0.3);
-        transform: rotate(90deg);
-    }
-    
-    .modal-content {
-        padding: 30px;
-    }
-    
-    .modal-footer {
-        padding: 20px 30px;
-        background: #f8f9fa;
-        border-radius: 0 0 12px 12px;
-        text-align: right;
-        border-top: 1px solid #eaeaea;
-    }
-    
-    .loader {
-        display: inline-block;
-        width: 20px;
-        height: 20px;
-        border: 3px solid #f3f3f3;
-        border-top: 3px solid #68955E;
-        border-radius: 50%;
-        animation: spin 1s linear infinite;
-        margin-right: 10px;
-    }
-    
-    @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-    }
-    
-    .progress-step {
-        display: flex;
-        align-items: center;
-        margin-bottom: 15px;
-        padding: 15px;
-        background: #f8f9fa;
-        border-radius: 8px;
-        border-left: 4px solid #e0e0e0;
-        transition: all 0.3s ease;
-    }
-    
-    .progress-step:hover {
-        border-left-color: #68955E;
-        background: #f0f9f0;
-    }
-    
-    .step-number {
-        width: 32px;
-        height: 32px;
-        background: #e0e0e0;
-        color: #666;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin-right: 15px;
-        font-weight: 700;
-        font-size: 14px;
-    }
-    
-    .step-completed {
-        background: #68955E;
-        color: white;
-    }
-    
-    .quality-badge {
-        display: inline-block;
-        padding: 4px 12px;
-        border-radius: 20px;
-        font-size: 12px;
-        font-weight: 700;
-        margin-left: 10px;
-    }
-    
-    .quality-high { background: #68955E; color: white; }
-    .quality-medium { background: #949108; color: white; }
-    .quality-low { background: #CC3300; color: white; }
-    .quality-very-low { background: #AD2624; color: white; }
-    
-    @media (max-width: 768px) {
-        .controls {
-            justify-content: center;
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
         
-        .result-area {
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
             padding: 20px;
         }
         
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        header {
+            background: linear-gradient(90deg, #2c3e50, #4a6491);
+            color: white;
+            padding: 25px 40px;
+            text-align: center;
+        }
+        
         h1 {
-            font-size: 1.8em;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .controls {
+            background: #ecf0f1;
+            padding: 20px 40px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
         }
         
         button {
-            padding: 10px 16px;
-            font-size: 14px;
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        
+        button:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        button:disabled {
+            background: #95a5a6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .btn-success {
+            background: #27ae60;
+        }
+        
+        .btn-success:hover {
+            background: #219653;
+        }
+        
+        .btn-warning {
+            background: #f39c12;
+        }
+        
+        .btn-warning:hover {
+            background: #e67e22;
+        }
+        
+        .btn-danger {
+            background: #e74c3c;
+        }
+        
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+        
+        .btn-purple {
+            background: #9b59b6;
+        }
+        
+        .btn-purple:hover {
+            background: #8e44ad;
+        }
+        
+        .result-area {
+            padding: 30px 40px;
+            min-height: 400px;
+        }
+        
+        .status {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        .status.warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        
+        .data-container {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        
+        .station-card {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+        }
+        
+        .station-card h3 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        
+        .station-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .info-label {
+            font-weight: 600;
+            color: #7f8c8d;
+        }
+        
+        .info-value {
+            color: #2c3e50;
+        }
+        
+        .highlight {
+            color: #e74c3c;
+            font-weight: 700;
         }
         
         .data-grid {
-            grid-template-columns: 1fr;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .data-card {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+        
+        .data-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+        }
+        
+        .data-card-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #3498db;
+        }
+        
+        .data-card-header h3 {
+            color: #2c3e50;
+            margin-left: 10px;
+        }
+        
+        .data-card-icon {
+            font-size: 24px;
+        }
+        
+        .last-update {
+            text-align: center;
+            margin-top: 20px;
+            color: #7f8c8d;
+            font-size: 0.9em;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+        
+        footer {
+            text-align: center;
+            padding: 20px;
+            color: #7f8c8d;
+            font-size: 14px;
+            border-top: 1px solid #eee;
+        }
+        
+        /* Modal/Overlay styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
         }
         
         .modal {
-            width: 95%;
+            background: white;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            animation: modalFadeIn 0.3s ease;
         }
-    }
-    
-    .et0-value {
-        font-size: 48px;
-        font-weight: 700;
-        text-align: center;
-        margin: 20px 0;
-        color: #68955E;
-    }
-    
-    .calculation-method {
-        text-align: center;
-        color: #666;
-        margin-bottom: 25px;
-        font-size: 15px;
-    }
-    
-    .parameters-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-        gap: 15px;
-        margin-top: 20px;
-    }
-    
-    .parameter-card {
-        background: #f8f9fa;
-        border-radius: 8px;
-        padding: 15px;
-        text-align: center;
-        border: 1px solid #eaeaea;
-        transition: all 0.3s ease;
-    }
-    
-    .parameter-card:hover {
-        border-color: #68955E;
-        background: white;
-    }
-    
-    .parameter-value {
-        font-size: 24px;
-        font-weight: 700;
-        color: #68955E;
-        margin-bottom: 5px;
-    }
-    
-    .parameter-label {
-        font-size: 12px;
-        color: #666;
-        font-weight: 600;
-    }
-    
-    .tabs {
-        display: flex;
-        border-bottom: 2px solid #eaeaea;
-        margin-bottom: 20px;
-        overflow-x: auto;
-    }
-    
-    .tab {
-        padding: 12px 24px;
-        cursor: pointer;
-        border-bottom: 2px solid transparent;
-        margin-bottom: -2px;
-        white-space: nowrap;
-        font-weight: 600;
-        color: #666;
-        transition: all 0.3s ease;
-    }
-    
-    .tab.active {
-        border-bottom-color: #68955E;
-        color: #68955E;
-    }
-    
-    .tab-content {
-        display: none;
-    }
-    
-    .tab-content.active {
-        display: block;
-    }
-    
-    .ufob-header {
-        position: relative;
-    }
-    
-    .ufob-header::after {
-        content: '';
-        position: absolute;
-        bottom: -10px;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 60px;
-        height: 4px;
-        background: #949108;
-        border-radius: 2px;
-    }
-</style>
+        
+        @keyframes modalFadeIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .modal-header {
+            background: linear-gradient(90deg, #2c3e50, #4a6491);
+            color: white;
+            padding: 20px;
+            border-radius: 15px 15px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .modal-header h3 {
+            margin: 0;
+            color: white;
+        }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal-content {
+            padding: 30px;
+        }
+        
+        .modal-footer {
+            padding: 15px 30px;
+            background: #f8f9fa;
+            border-radius: 0 0 15px 15px;
+            text-align: right;
+            border-top: 1px solid #eee;
+        }
+        
+        /* Loading animation */
+        .loader {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Progress steps */
+        .progress-step {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+        
+        .step-number {
+            width: 30px;
+            height: 30px;
+            background: #e0e0e0;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 10px;
+            font-weight: bold;
+        }
+        
+        .step-completed {
+            background: #27ae60;
+            color: white;
+        }
+        
+        /* Quality badges */
+        .quality-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        
+        .quality-high { background: #27ae60; color: white; }
+        .quality-medium { background: #f39c12; color: white; }
+        .quality-low { background: #e74c3c; color: white; }
+        .quality-very-low { background: #95a5a6; color: white; }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .controls {
+                justify-content: center;
+            }
+            
+            .result-area {
+                padding: 20px;
+            }
+            
+            h1 {
+                font-size: 2em;
+            }
+            
+            button {
+                padding: 10px 15px;
+                font-size: 14px;
+            }
+            
+            .data-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        /* ET0 specific */
+        .et0-value {
+            font-size: 48px;
+            font-weight: bold;
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        .calculation-method {
+            text-align: center;
+            color: #7f8c8d;
+            margin-bottom: 20px;
+        }
+        
+        .parameters-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .parameter-card {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+        
+        .parameter-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        
+        .parameter-label {
+            font-size: 12px;
+            color: #7f8c8d;
+            margin-top: 5px;
+        }
+        
+        /* Tabs */
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #eee;
+            margin-bottom: 20px;
+        }
+        
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+        }
+        
+        .tab.active {
+            border-bottom-color: #3498db;
+            color: #3498db;
+            font-weight: bold;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        /* Date inputs */
+        input[type="date"] {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            width: 100%;
+        }
+        
+        .date-range-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .date-input-group {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .date-input-group label {
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        /* Table styles */
+        .et0-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        
+        .et0-table th {
+            background: #f8f9fa;
+            padding: 12px;
+            text-align: left;
+            border-bottom: 2px solid #dee2e6;
+        }
+        
+        .et0-table td {
+            padding: 10px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .et0-table tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .historical-summary {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .summary-card {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            border-left: 4px solid #3498db;
+        }
+        
+        .summary-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+        
+        .summary-label {
+            font-size: 14px;
+            color: #7f8c8d;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
         <header>
-    <div class="ufob-header">
-        <div class="ufob-logo">🌾</div>
-        <div>
-            <h1>Dashboard Meteorológico Área Experimental da Fazenda Escola da UFOB Campus Barra</h1>
-            <p class="ufob-subtitle">Sistema de Monitoramento Climático e Cálculo de ET0 em Tempo Real</p>
-        </div>
-        <div class="ufob-logo">⚡</div>
-    </div>
-</header>
+            <h1>🌤️ Dashboard Meteorológico Inteligente</h1>
+            <p>Sistema de Monitoramento e Cálculo de ET0 em Tempo Real</p>
+        </header>
         
         <div class="controls">
             <button onclick="testConnection()" id="btnTest">
@@ -622,11 +569,11 @@
             <button onclick="showET0Dashboard()" id="btnET0" style="background: #27ae60;">
                 🌱 Calculadora ET0
             </button>
+            <button onclick="showHistoricalET0Modal()" id="btnHistoricalET0" class="btn-purple">
+                📅 ET0 Histórico
+            </button>
             <button onclick="clearResults()" id="btnClear" class="btn-warning">
                 🗑️ Limpar
-            </button>
-            <button onclick="showXMLStats()" style="background: #805ad5;">
-                📊 Ver Estatísticas XML
             </button>
         </div>
         
@@ -639,7 +586,7 @@
         <div class="modal-overlay" id="modalOverlay">
             <div class="modal">
                 <div class="modal-header">
-                    <h3 id="modalTitle">Detalhes da Estaçãoddh3>
+                    <h3 id="modalTitle">Detalhes da Estação</h3>
                     <button class="modal-close" onclick="closeModal()">&times;</button>
                 </div>
                 <div class="modal-content">
@@ -652,15 +599,7 @@
         </div>
         
         <footer>
-            <img src="img/geias.png" alt="Logotipo Geias" class="footer-img" height="48"> 
-            <img src="img/cmb.png" alt="Logotipo UFOB CMbarra" class="footer-img" height="48">
-             <p>
-        <strong>GEIAS – Grupo de Estudos em Irrigação e Agrometeorologia no Semiárido</strong><br>
-        Engenharia Agronômica – UFOB – Campus de Barra
-    </p>
-    <p>
-        Sistema de Monitoramento Meteorológico e Cálculo de ET₀
-    </p>
+            <p>© 2024 Sistema de Monitoramento Meteorológico - Cálculo Inteligente de ET0</p>
         </footer>
     </div>
 
@@ -718,6 +657,10 @@
         
         async calculateET0(stationId, date = null) {
             return this.makeRequest('calculateET0', { stationId, date });
+        },
+        
+        async getHistoricalET0(startDate, endDate) {
+            return this.makeRequest('getHistoricalET0', { startDate, endDate });
         }
     };
 
@@ -762,6 +705,7 @@
                 if (btn.id === 'btnUser') btn.innerHTML = '👤 Verificar Acesso';
                 if (btn.id === 'btnStations') btn.innerHTML = '📡 Buscar Dados';
                 if (btn.id === 'btnET0') btn.innerHTML = '🌱 Calculadora ET0';
+                if (btn.id === 'btnHistoricalET0') btn.innerHTML = '📅 ET0 Histórico';
                 if (btn.id === 'btnClear') btn.innerHTML = '🗑️ Limpar';
             }
         });
@@ -1554,6 +1498,175 @@
         showStatus('🌱 Calculadora de ET0 carregada', 'info');
     }
     
+    // ============================================
+    // FUNCIONALIDADE DE ET0 HISTÓRICO
+    // ============================================
+    
+    function showHistoricalET0Modal() {
+        // Calcular datas padrão (últimos 30 dias)
+        const endDate = new Date();
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - 30);
+        
+        const formatDate = (date) => {
+            return date.toISOString().split('T')[0];
+        };
+        
+        const modalHtml = `
+            <div class="station-card">
+                <h3>📅 Análise Histórica de ET0</h3>
+                <p>Busque dados de ET0 do arquivo público (Gist) para um período específico.</p>
+                <p><em>Os dados são extraídos do arquivo XML que contém registros diários às 00:00:00</em></p>
+                
+                <div class="date-range-container" style="margin-top: 20px;">
+                    <div class="date-input-group">
+                        <label for="historicalStartDate">Data Inicial:</label>
+                        <input type="date" id="historicalStartDate" value="${formatDate(startDate)}" max="${formatDate(endDate)}">
+                    </div>
+                    <div class="date-input-group">
+                        <label for="historicalEndDate">Data Final:</label>
+                        <input type="date" id="historicalEndDate" value="${formatDate(endDate)}" max="${formatDate(endDate)}">
+                    </div>
+                </div>
+                
+                <div style="margin-top: 20px; text-align: center;">
+                    <button onclick="fetchHistoricalET0()" style="background: #9b59b6; padding: 12px 24px; font-size: 16px;">
+                        📊 Buscar Dados Históricos
+                    </button>
+                </div>
+                
+                <div id="historicalET0Results" style="margin-top: 30px;"></div>
+            </div>
+        `;
+        
+        openModal('ET0 Histórico', modalHtml);
+    }
+    
+    async function fetchHistoricalET0() {
+        const startDate = document.getElementById('historicalStartDate').value;
+        const endDate = document.getElementById('historicalEndDate').value;
+        
+        if (!startDate || !endDate) {
+            alert('Por favor, selecione ambas as datas.');
+            return;
+        }
+        
+        if (startDate > endDate) {
+            alert('A data inicial não pode ser posterior à data final.');
+            return;
+        }
+        
+        setLoading(true);
+        showStatus(`Buscando dados históricos de ET0 de ${startDate} a ${endDate}...`, 'info');
+        
+        try {
+            const result = await FieldClimateClient.getHistoricalET0(startDate, endDate);
+            
+            const resultsDiv = document.getElementById('historicalET0Results');
+            
+            if (result.success) {
+                const data = result.data;
+                
+                let resultsHtml = `
+                    <div class="station-card" style="background: #f8f9fa;">
+                        <h3>📊 Resultados do Período: ${data.period}</h3>
+                        
+                        <div class="historical-summary">
+                            <div class="summary-card">
+                                <div class="summary-value">${data.count}</div>
+                                <div class="summary-label">Registros ET0</div>
+                            </div>
+                            <div class="summary-card">
+                                <div class="summary-value">${data.average}</div>
+                                <div class="summary-label">Média (mm/dia)</div>
+                            </div>
+                            <div class="summary-card">
+                                <div class="summary-value">${data.min}</div>
+                                <div class="summary-label">Mínimo (mm/dia)</div>
+                            </div>
+                            <div class="summary-card">
+                                <div class="summary-value">${data.max}</div>
+                                <div class="summary-label">Máximo (mm/dia)</div>
+                            </div>
+                        </div>
+                `;
+                
+                if (data.note) {
+                    resultsHtml += `
+                        <div style="margin-top: 15px; padding: 10px; background: #fff3cd; border-radius: 5px;">
+                            <p><strong>Nota:</strong> ${data.note}</p>
+                        </div>
+                    `;
+                }
+                
+                // Mostrar tabela com valores individuais se houver dados
+                if (data.values && data.values.length > 0) {
+                    resultsHtml += `
+                        <div style="margin-top: 20px;">
+                            <h4>📅 Valores Diários de ET0</h4>
+                            <div style="max-height: 300px; overflow-y: auto; margin-top: 10px;">
+                                <table class="et0-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Data</th>
+                                            <th>ET0 (mm/dia)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                    `;
+                    
+                    data.values.forEach(item => {
+                        resultsHtml += `
+                            <tr>
+                                <td>${item.date}</td>
+                                <td><strong>${item.value.toFixed(2)}</strong></td>
+                            </tr>
+                        `;
+                    });
+                    
+                    resultsHtml += `
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                resultsHtml += `
+                    </div>
+                    
+                    <div style="margin-top: 20px; padding: 15px; background: #e3f2fd; border-radius: 8px;">
+                        <h4>💡 Interpretação</h4>
+                        <p>Estes valores representam a evapotranspiração de referência (ET0) calculada diariamente às 00:00:00.</p>
+                        <p><strong>Média:</strong> ${data.average} mm/dia indica a demanda hídrica média no período.</p>
+                        <p><strong>Variação:</strong> ${data.min} mm/dia (mínimo) a ${data.max} mm/dia (máximo).</p>
+                    </div>
+                `;
+                
+                resultsDiv.innerHTML = resultsHtml;
+                showStatus('✅ Dados históricos carregados com sucesso', 'success');
+            } else {
+                resultsDiv.innerHTML = `
+                    <div class="status error">
+                        ❌ ${result.message || 'Erro ao buscar dados históricos'}
+                    </div>
+                `;
+                showStatus('❌ Erro ao buscar dados históricos', 'error');
+            }
+        } catch (error) {
+            const resultsDiv = document.getElementById('historicalET0Results');
+            resultsDiv.innerHTML = `
+                <div class="status error">
+                    ❌ Erro na requisição: ${error.message}
+                </div>
+            `;
+            showStatus('❌ Erro ao buscar dados históricos', 'error');
+            console.error('Erro em fetchHistoricalET0:', error);
+        } finally {
+            setLoading(false);
+        }
+    }
+    
     function updateLastUpdateTime() {
         lastUpdate = new Date();
         const timeEl = document.getElementById('last-update-time');
@@ -1562,99 +1675,9 @@
         }
     }
     
-
-    // ============================================
-    // FUNÇÃO PARA ANALISAR DADOS DO XML
-    // ============================================
-    
-    async function showXMLStats() {
-        setLoading(true);
-        showStatus('Analisando dados do XML...', 'info');
-        
-        try {
-            // Criar uma requisição simples para o XML
-            const response = await fetch('https://gist.github.com/jezielreis/5aa95bed00d0ec12153b41f8f0370de0/raw/0e7fd4264365f7d20a532cfa1f34932b97f580bd/031133E8_station_data.xml');
-            const xmlText = await response.text();
-            
-            // Extrair dados de ET0 (00:00:00)
-            const et0Values = [];
-            const rowMatches = xmlText.match(/<Row>[\s\S]*?<\/Row>/g) || [];
-            
-            for (const row of rowMatches) {
-                const cells = row.match(/<Cell>[\s\S]*?<\/Cell>/g);
-                if (!cells || cells.length < 2) continue;
-                
-                // Verificar se é horário 00:00:00
-                const dateTimeMatch = cells[0].match(/<Data[^>]*>([^<]+)<\/Data>/);
-                if (!dateTimeMatch || !dateTimeMatch[1].includes('00:00:00')) continue;
-                
-                // Extrair ET0
-                const et0Match = cells[cells.length - 1].match(/<Data[^>]*>([^<]+)<\/Data>/);
-                if (!et0Match) continue;
-                
-                const et0Value = parseFloat(et0Match[1].trim());
-                if (!isNaN(et0Value)) {
-                    et0Values.push(et0Value);
-                }
-            }
-            
-            if (et0Values.length > 0) {
-                const sum = et0Values.reduce((a, b) => a + b, 0);
-                const avg = sum / et0Values.length;
-                const max = Math.max(...et0Values);
-                const min = Math.min(...et0Values);
-                
-                const html = `
-                    <div class="station-card">
-                        <h3>📊 Estatísticas do Arquivo XML</h3>
-                        <p>Dados extraídos dos horários 00:00:00</p>
-                        
-                        <div class="parameters-grid">
-                            <div class="parameter-card">
-                                <div class="parameter-value">${et0Values.length}</div>
-                                <div class="parameter-label">Registros ET0</div>
-                            </div>
-                            <div class="parameter-card">
-                                <div class="parameter-value">${avg.toFixed(2)}</div>
-                                <div class="parameter-label">Média (mm/dia)</div>
-                            </div>
-                            <div class="parameter-card">
-                                <div class="parameter-value">${max.toFixed(2)}</div>
-                                <div class="parameter-label">Máximo (mm/dia)</div>
-                            </div>
-                            <div class="parameter-card">
-                                <div class="parameter-value">${min.toFixed(2)}</div>
-                                <div class="parameter-label">Mínimo (mm/dia)</div>
-                            </div>
-                        </div>
-                        
-                        <div style="margin-top: 20px; background: #f8f9fa; padding: 15px; border-radius: 8px;">
-                            <h4>📈 Distribuição dos Valores</h4>
-                            <p><strong>Fonte:</strong> Arquivo XML do Gist</p>
-                            <p><strong>Última atualização:</strong> Manual (atualize o arquivo no Gist)</p>
-                            <p><strong>Uso:</strong> Estes valores serão usados automaticamente quando a API não estiver disponível</p>
-                        </div>
-                    </div>
-                `;
-                
-                dataContainer.innerHTML = html;
-                showStatus(`✅ ${et0Values.length} valores de ET0 encontrados no XML`, 'success');
-            } else {
-                showStatus('⚠️ Nenhum valor de ET0 encontrado no XML para horários 00:00:00', 'warning');
-            }
-            
-        } catch (error) {
-            showStatus(`❌ Erro ao analisar XML: ${error.message}`, 'error');
-        } finally {
-            setLoading(false);
-        }
-    }
-
     // ============================================
     // INICIALIZAÇÃO
     // ============================================
-
-
     
     document.addEventListener('DOMContentLoaded', () => {
         // Carregar estações do cache
